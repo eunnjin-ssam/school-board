@@ -1,0 +1,167 @@
+/* 스쿨보드 — '팝' 테마 (검은 상단바 · 굵은 테두리 · 라임/라벤더 포인트) */
+:root {
+  --ink: #141414;
+  --lime: #e2f04a;
+  --lime-soft: #f8fbd6;
+  --lav: #8f78f0;
+  --lav-soft: #eeeafe;
+  --bg: #f3f3f1;
+  --line: #e4e4e0;
+  --line-strong: #141414;
+  --text: #141414;
+  --muted: #5f5f5a;
+  --faint: #9a9a94;
+  --accent: #5b3fd9;
+  --accent-soft: #eeeafe;
+  --accent-softer: #f6f4ff;
+  --radius: 22px;
+  --shadow: none;
+}
+
+html { background: linear-gradient(#141414 0 190px, #e8e8e6 190px); }
+body { flex-direction: column; background: transparent; }
+
+/* ---------- 상단바 (사이드바를 가로로) ---------- */
+.sidebar {
+  position: sticky; top: 0; z-index: 20; height: 76px; width: 100%;
+  flex-direction: row; align-items: center; padding: 0 36px; gap: 10px;
+  background: #141414; border: 0;
+}
+.logo {
+  position: relative; width: 38px; height: 38px; margin: 0 120px 0 0; border-radius: 11px;
+  background: var(--lime); color: #141414; font-weight: 900;
+}
+.logo::after {
+  content: '스쿨보드'; position: absolute; left: 50px; color: #fff; font-size: 21px; font-weight: 800;
+  letter-spacing: -.03em; white-space: nowrap;
+}
+.sidebar nav { flex-direction: row; justify-content: center; gap: 4px; flex: 1; }
+.nav-btn {
+  width: auto; height: 42px; border-radius: 999px; padding: 0 16px; gap: 8px;
+  display: inline-flex; align-items: center; color: #bdbdb8;
+}
+.nav-btn svg { width: 18px; height: 18px; }
+.nav-btn::after { content: attr(title); font-size: 14px; font-weight: 500; white-space: nowrap; }
+.nav-btn:hover { background: #262626; color: #fff; }
+.nav-btn.active { background: #2b2b2b; color: #fff; }
+#settingsBtn { border: 1px solid #3a3a3a; }
+
+/* ---------- 본문 흰 판 ---------- */
+.main {
+  background: #fdfdfc; border-radius: 30px; margin: 0 28px 28px; padding: 34px 38px 40px;
+  max-width: none; width: auto; align-self: stretch;
+}
+.page-head h1 { font-size: 40px; font-weight: 800; color: var(--ink); letter-spacing: -.035em; }
+.page-head p { color: var(--muted); font-size: 15px; }
+.date-pill { border: 1.5px solid var(--ink); background: var(--lime); font-weight: 700; }
+.date-pill svg { color: var(--ink); }
+
+/* ---------- 카드 ---------- */
+.card { border: 1.5px solid var(--ink); border-radius: var(--radius); box-shadow: none; }
+.card-head h2 { font-size: 18px; font-weight: 800; letter-spacing: -.02em; }
+.stat-head { font-weight: 700; color: var(--ink); }
+.chip-icon, .chip-icon.green, .chip-icon.blue, .chip-icon.amber, .chip-icon.purple {
+  background: var(--ink); color: var(--lime); width: 34px; height: 34px;
+}
+
+/* 위 4장: 시계 = 라임 강조, 날씨 = 흰색, 미세먼지 = 라벤더, 학사일정 = 연노랑 */
+#clockCard { background: var(--lime); }
+#clockCard .clock-s { color: rgba(20, 20, 20, .45); }
+#clockHM { font-weight: 800; font-size: 50px; }
+.dot.live { background: var(--ink); box-shadow: 0 0 0 4px rgba(20, 20, 20, .15); }
+.dot.break { background: var(--lav); box-shadow: 0 0 0 4px rgba(143, 120, 240, .25); }
+#clockCard .period-now .sub { color: rgba(20, 20, 20, .6); }
+#dustCard { background: var(--lav-soft); }
+#weekCard { background: #fff7d6; }
+.big { font-weight: 800; }
+.hourly div { background: #fff; border: 1.5px solid var(--ink); border-radius: 14px; }
+.hourly .now-h { background: var(--lime); }
+.bar { height: 10px; background: #fff; border: 1.5px solid var(--ink); }
+.bar span { background-image: repeating-linear-gradient(-45deg, rgba(255, 255, 255, .35) 0 4px, transparent 4px 8px); }
+.advice { border: 1.5px solid var(--ink); border-radius: 999px; text-align: center; font-weight: 700; }
+.dday { background: var(--ink); color: var(--lime); }
+
+/* ---------- 버튼 ---------- */
+.btn-primary { background: var(--ink); border-radius: 999px; }
+.btn-primary:hover { background: #333; }
+.btn-soft { background: var(--lime); color: var(--ink); border: 1.5px solid var(--ink); border-radius: 999px; font-weight: 700; }
+.btn-soft:hover { background: #d6e43c; }
+.btn-line { border: 1.5px solid var(--ink); border-radius: 999px; }
+.link-btn { color: var(--ink); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.link-btn:hover { background: var(--lime-soft); }
+.icon-btn { border: 1.5px solid var(--ink); border-radius: 50%; color: var(--ink); }
+.status-pill { background: var(--lime); color: var(--ink); border: 1.5px solid var(--ink); }
+
+/* ---------- 시간표 ---------- */
+.tt thead th.today { color: var(--ink); }
+.today-dot { background: var(--ink); color: var(--lime); }
+.tt td.today { background: var(--lime-soft); }
+.tt td.now { background: var(--lime); box-shadow: inset 0 0 0 2px var(--ink); }
+.tt tr.now-row th b { color: var(--ink); }
+/* 과목은 검은 글자로만 — 색은 '오늘' 줄과 '지금' 교시에만 씁니다 */
+.tt td { background: #f6f6f4; }
+.tt .subj { background: transparent !important; color: var(--ink) !important; font-weight: 600; }
+.tt .subj.special { color: var(--faint) !important; outline-color: #c4c4be; }
+.tt-legend .subj.special { background: transparent !important; color: var(--faint) !important; outline-color: #c4c4be; }
+.tt-lunch th, .tt-lunch td { background: repeating-linear-gradient(-45deg, transparent 0 6px, #f1f1ee 6px 12px); }
+.tt-sp.on { background: var(--ink); border-color: var(--ink); }
+
+/* ---------- 할 일 ---------- */
+.tf { border: 1.5px solid var(--ink); border-radius: 18px; box-shadow: none; }
+.tf.all { background: #fff; }
+.tf.urgent { background: #ffe3e1; }
+.tf.submit { background: var(--lime-soft); } .tf.submit b { color: #6f7a00; }
+.tf.normal { background: var(--lav-soft); } .tf.normal b { color: var(--lav); }
+.tf.active, .tf.urgent.active, .tf.submit.active, .tf.normal.active { background: var(--ink); color: var(--lime); box-shadow: none; }
+.tf.active b { color: var(--lime); }
+.tf.active span, .tf.active small { color: #fff; }
+.todo { border: 1.5px solid var(--ink); border-radius: 16px; }
+.todo.overdue { border-color: var(--red); }
+.check { border: 2px solid var(--ink); border-radius: 7px; }
+.check:checked { background: var(--lime); border-color: var(--ink); }
+.check:checked::after { border-color: var(--ink); }
+.todo-add input, .todo-add select, .field input, .field select, .field textarea, textarea.box, input.box,
+.ag-add input, .ag-add select, .search {
+  border: 1.5px solid var(--ink); border-radius: 14px;
+}
+.todo-add input:focus, .todo-add select:focus, .field input:focus, .field select:focus, .field textarea:focus,
+textarea.box:focus, input.box:focus, .ag-add input:focus, .ag-add select:focus {
+  border-color: var(--ink); box-shadow: 0 0 0 3px var(--lime);
+}
+.badge.submit { background: var(--lime-soft); color: #6f7a00; }
+.badge.normal { background: var(--lav-soft); color: var(--accent); }
+.badge.school { background: var(--lav-soft); color: var(--accent); }
+.empty-state { border-color: #d4d4cf; }
+
+/* ---------- 달력 ---------- */
+.cal-day.today .num { background: var(--ink); color: var(--lime); }
+.cal-day.sel { background: var(--lime-soft); box-shadow: inset 0 0 0 1.5px var(--ink); }
+.d-school { background: var(--lav); }
+.agenda { border-left: 1.5px dashed #d4d4cf; }
+.ag-item { background: #fff; border: 1.5px solid var(--ink); }
+
+/* ---------- 명렬표 ---------- */
+.stu { border: 1.5px solid var(--ink); border-radius: 16px; }
+.stu:hover { background: var(--lime-soft); border-color: var(--ink); }
+.stu-no { background: var(--ink); color: var(--lime); }
+.stu-memo-count { background: var(--lime); color: var(--ink); }
+.tag { background: var(--lav-soft); color: var(--accent); }
+
+/* ---------- 메모 · 모달 ---------- */
+.memo-fab { background: var(--lime); color: var(--ink); border: 1.5px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); }
+.memo-fab:hover { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--ink); }
+.modal { border: 2px solid var(--ink); border-radius: 26px; }
+.drawer { border-left: 2px solid var(--ink); }
+.toast { background: var(--ink); color: #fff; }
+.toast button { background: var(--lime); color: var(--ink); }
+
+@media (max-width: 1100px) {
+  .nav-btn::after { display: none; }
+  .logo { margin-right: 110px; }
+}
+@media (max-width: 720px) {
+  .sidebar { display: flex; padding: 0 14px; }
+  .logo { margin-right: 0; }
+  .logo::after { display: none; }
+  .main { margin: 0 8px 16px; padding: 22px 16px; }
+}
