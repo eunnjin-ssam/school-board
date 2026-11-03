@@ -55,6 +55,11 @@ body { flex-direction: column; background: transparent; }
 .page-head p { color: var(--muted); font-size: 15px; }
 .date-pill { border: 1.5px solid var(--ink); background: var(--lime); font-weight: 700; }
 .date-pill svg { color: var(--ink); }
+.folder-chip { border: 1.5px solid var(--ink); font-weight: 700; }
+.folder-chip svg { color: var(--ink); }
+.folder-chip:hover { background: var(--lime); border-color: var(--ink); }
+.folder-chip.add { border-color: #b9b9b3; }
+.folder-chip.add:hover { border-color: var(--ink); color: var(--ink); background: var(--lime-soft); }
 
 /* ---------- 카드 ---------- */
 .card { border: 1.5px solid var(--ink); border-radius: var(--radius); box-shadow: none; }

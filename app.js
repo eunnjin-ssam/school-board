@@ -53,6 +53,8 @@ const ICONS = {
   sticky: '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5V14l-6 6H5.5A1.5 1.5 0 0 1 4 18.5z"/><path d="M14 20v-4.5a1.5 1.5 0 0 1 1.5-1.5H20M8 9h8M8 12.5h4"/>',
   pin: '<path d="M9 3.5h6l-1 5.5 3.5 3.5h-11L10 9z"/><path d="M12 12.5V21"/>',
   arrowRight: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  folder: '<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.8M12 17.2v.1"/>',
 };
 const icon = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`;
 function hydrateIcons(root = document) {
@@ -102,6 +104,7 @@ const DEFAULT_STATE = {
   done: [],     // 완료한 할 일 (최근 50개)
   students: [], // {id, no, name, tags: [], memos: [{id, at, text}]}
   notes: [],    // 포스트잇 {id, text, color, updated}
+  folders: [],  // 자주 쓰는 폴더 {id, name, path}
   cache: { weather: null },
 };
 
@@ -1719,6 +1722,95 @@ async function openPip({ fresh = false } = {}) {
 $('#memoFab').addEventListener('click', () => openPip({ fresh: true }));
 
 /* =========================================================
+   자주 쓰는 폴더 바로가기
+   브라우저는 탐색기를 직접 열 수 없어서, folder-opener의 설치 파일이 등록한
+   schoolboard-folder: 주소로 넘기면 Windows가 탐색기로 열어 줍니다.
+   ========================================================= */
+let folderEdit = false;
+const folderBar = $('#folderBar');
+const cleanPath = p => p.trim().replace(/^["']+|["']+$/g, '').replace(/\//g, '\\');
+const folderNameOf = p => cleanPath(p).replace(/\\+$/, '').split('\\').pop() || p;
+
+function renderFolders() {
+  folderBar.classList.toggle('editing', folderEdit);
+  const chips = S.folders.map(f => `<button class="folder-chip" data-id="${f.id}" title="${esc(folderEdit ? '눌러서 고치기' : f.path)}">${icon(folderEdit ? 'edit' : 'folder')}<span>${esc(f.name)}</span></button>`).join('');
+  folderBar.innerHTML = chips + (folderEdit
+    ? `<button class="folder-chip add" data-act="add">${icon('plus')}<span>폴더 추가</span></button><button class="link-btn small" data-act="done">완료</button>`
+    : S.folders.length
+      ? `<button class="link-btn small" data-act="edit" title="폴더 추가·수정·삭제">${icon('edit')}편집</button>`
+      : `<button class="folder-chip add" data-act="add">${icon('plus')}<span>자주 쓰는 폴더 추가</span></button><button class="link-btn small" data-act="help">${icon('help')}사용법</button>`);
+}
+
+function openFolder(f) {
+  // 탐색기가 열리면 이 창이 포커스를 잃어요. 몇 초 안에 그런 일이 없으면 설치 안내를 띄움
+  let opened = false;
+  const onBlur = () => { opened = true; };
+  window.addEventListener('blur', onBlur, { once: true });
+  setTimeout(() => {
+    window.removeEventListener('blur', onBlur);
+    if (!opened && document.hasFocus()) toast('폴더가 안 열렸나요?', { label: '해결 방법', fn: openFolderHelp });
+  }, 4000);
+  location.href = 'schoolboard-folder:' + encodeURIComponent(f.path);
+}
+
+function openFolderForm(id) {
+  const f = S.folders.find(x => x.id === id);
+  const body = openModal(f ? '폴더 바로가기 고치기' : '폴더 바로가기 추가', `
+    <label class="field"><span>폴더 경로 <small>탐색기에서 폴더를 오른쪽 클릭 → <b>경로로 복사</b> 후 붙여넣기</small></span>
+      <input class="box" id="fdPath" value="${esc(f?.path || '')}" placeholder="C:\\Users\\…\\Desktop\\수업자료" autofocus>
+    </label>
+    <label class="field"><span>이름 <small>비워 두면 폴더 이름을 써요</small></span>
+      <input class="box" id="fdName" value="${esc(f?.name || '')}" maxlength="20" placeholder="예: 수업자료">
+    </label>
+    <div class="modal-actions">
+      ${f ? `<button class="link-btn danger" data-act="del" style="margin-right:auto">${icon('trash')}삭제</button>` : ''}
+      <button class="link-btn small" data-act="help">${icon('help')}폴더가 안 열려요</button>
+      <button class="btn-primary" data-act="save">${f ? '저장' : '추가'}</button>
+    </div>`);
+  const pathEl = $('#fdPath', body), nameEl = $('#fdName', body);
+  const submit = () => {
+    const path = cleanPath(pathEl.value);
+    if (!/^([A-Za-z]:\\|%[^%]+%)/.test(path)) { toast('C:\\ 처럼 드라이브 문자로 시작하는 폴더 경로를 넣어 주세요.'); pathEl.focus(); return; }
+    const name = nameEl.value.trim() || folderNameOf(path);
+    if (f) Object.assign(f, { path, name });
+    else S.folders.push({ id: uid(), path, name });
+    save(); renderFolders(); closeModal();
+  };
+  [pathEl, nameEl].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); }));
+  body.addEventListener('click', e => {
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'save') submit();
+    if (act === 'help') openFolderHelp();
+    if (act === 'del' && confirm(`'${f.name}' 바로가기를 삭제할까요? (실제 폴더는 지워지지 않아요)`)) {
+      S.folders = S.folders.filter(x => x.id !== f.id);
+      save(); renderFolders(); closeModal();
+    }
+  });
+}
+
+function openFolderHelp() {
+  openModal('폴더 바로가기 사용법', `
+    <ol class="help-steps">
+      <li><b>처음 한 번만:</b> 스쿨보드 폴더 안의 <b>folder-opener</b> 폴더에서 <b>폴더열기-설치</b>를 더블클릭하세요. 컴퓨터마다 한 번씩 해야 해요(집, 학교 따로).</li>
+      <li>바로가기를 누르면 브라우저가 앱을 열지 물어볼 수 있어요. <b>열기</b>를 누르면 탐색기가 열려요. <b>항상 허용</b> 칸이 보이면 체크해 두세요.</li>
+      <li>경로는 탐색기에서 폴더를 오른쪽 클릭 → <b>경로로 복사</b>로 가져올 수 있어요.</li>
+      <li>집과 학교의 사용자 이름이 다르면 <code>%USERPROFILE%\\Desktop\\수업자료</code>처럼 쓰면 두 컴퓨터에서 모두 열려요.</li>
+    </ol>
+    <p class="sub">안전을 위해 이 컴퓨터에 있는 <b>폴더</b>만 열 수 있고, 파일·프로그램이나 네트워크 경로(\\\\서버)는 열지 않아요. 연결을 지우려면 <b>폴더열기-제거</b>를 실행하세요.</p>`);
+}
+
+folderBar.addEventListener('click', e => {
+  const act = e.target.closest('[data-act]')?.dataset.act;
+  if (act === 'add') { openFolderForm(); return; }
+  if (act === 'help') { openFolderHelp(); return; }
+  if (act === 'edit' || act === 'done') { folderEdit = act === 'edit'; renderFolders(); return; }
+  const chip = e.target.closest('.folder-chip[data-id]');
+  if (!chip) return;
+  if (folderEdit) openFolderForm(chip.dataset.id);
+  else openFolder(S.folders.find(f => f.id === chip.dataset.id));
+});
+
+/* =========================================================
    사이드바 · 시작
    ========================================================= */
 $$('.nav-btn[data-target]').forEach(b => b.addEventListener('click', () => {
@@ -1733,6 +1825,7 @@ $('#weatherRefresh').addEventListener('click', () => loadWeather(true));
 
 function renderAll() {
   renderHeader();
+  renderFolders();
   renderPeriodNow();
   renderTimetable();
   renderWeek();

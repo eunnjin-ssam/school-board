@@ -81,6 +81,22 @@ svg.i {
 }
 .date-pill svg { width: 18px; height: 18px; color: var(--muted); }
 
+/* ---------- 자주 쓰는 폴더 ---------- */
+.folder-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -6px 0 20px; }
+.folder-chip {
+  display: inline-flex; align-items: center; gap: 7px; padding: 8px 15px; border-radius: 999px;
+  border: 1px solid var(--line-strong); background: var(--card); color: var(--text);
+  font-weight: 600; font-size: 14px; max-width: 220px; transition: background .15s, border-color .15s;
+}
+.folder-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-chip svg { width: 17px; height: 17px; flex: none; color: var(--accent); }
+.folder-chip:hover { border-color: var(--accent); background: var(--accent-softer); }
+.folder-chip.add { border-style: dashed; color: var(--muted); font-weight: 500; }
+.folder-chip.add svg { color: var(--muted); }
+.folder-bar.editing .folder-chip[data-id] { border-style: dashed; }
+.help-steps { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 8px; line-height: 1.55; }
+.help-steps code { background: var(--bg); border-radius: 6px; padding: 1px 6px; font-size: 12.5px; }
+
 .stats { display: grid; grid-template-columns: 1fr 1.35fr 1fr 1fr; gap: 18px; margin-bottom: 18px; }
 .row { display: grid; gap: 18px; margin-bottom: 18px; }
 /* 위 카드 줄과 같은 4칸 격자: 왼쪽 카드 = 시계+날씨, 오른쪽 카드 = 미세먼지+학사일정 */
