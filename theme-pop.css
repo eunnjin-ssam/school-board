@@ -64,15 +64,20 @@ body { flex-direction: column; background: transparent; }
   background: var(--ink); color: var(--lime); width: 34px; height: 34px;
 }
 
-/* 위 4장: 시계 = 라임 강조, 날씨 = 흰색, 미세먼지 = 라벤더, 학사일정 = 연노랑 */
+/* 위 4장: 라임(시계) – 흰(날씨) – 흰(미세먼지) – 검정(학사일정) */
 #clockCard { background: var(--lime); }
 #clockCard .clock-s { color: rgba(20, 20, 20, .45); }
 #clockHM { font-weight: 800; font-size: 50px; }
 .dot.live { background: var(--ink); box-shadow: 0 0 0 4px rgba(20, 20, 20, .15); }
 .dot.break { background: var(--lav); box-shadow: 0 0 0 4px rgba(143, 120, 240, .25); }
 #clockCard .period-now .sub { color: rgba(20, 20, 20, .6); }
-#dustCard { background: var(--lav-soft); }
-#weekCard { background: #fff7d6; }
+#weekCard { background: var(--ink); color: #fff; }
+#weekCard .stat-head, #weekCard .big { color: #fff; }
+#weekCard .big .unit, #weekCard .sub { color: #a9a9a3; }
+#weekCard .chip-icon { background: var(--lime); color: var(--ink); }
+#weekCard .dday { background: var(--lime); color: var(--ink); }
+#weekCard .week-today { color: #e8e8e3; }
+#weekCard .week-today .dot { background: var(--lime) !important; }
 .big { font-weight: 800; }
 .hourly div { background: #fff; border: 1.5px solid var(--ink); border-radius: 14px; }
 .hourly .now-h { background: var(--lime); }
