@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>스쿨보드</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%232e7d57'/%3E%3Ctext x='16' y='22' font-size='17' font-weight='700' text-anchor='middle' fill='white' font-family='sans-serif'%3ES%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="logo" title="스쿨보드">S</div>
+    <nav>
+      <button class="nav-btn active" data-target="top" title="대시보드"><i data-icon="grid"></i></button>
+      <button class="nav-btn" data-target="timetableCard" title="시간표"><i data-icon="table"></i></button>
+      <button class="nav-btn" data-target="todoCard" title="할 일"><i data-icon="checkSquare"></i></button>
+      <button class="nav-btn" data-target="calendarCard" title="달력"><i data-icon="calendar"></i></button>
+      <button class="nav-btn" data-target="rosterCard" title="학생 명렬표"><i data-icon="users"></i></button>
+      <button class="nav-btn" id="notesBtn" title="포스트잇 메모"><i data-icon="sticky"></i></button>
+    </nav>
+    <button class="nav-btn" id="settingsBtn" title="설정"><i data-icon="settings"></i></button>
+  </aside>
+
+  <main class="main" id="top">
+    <header class="page-head">
+      <div>
+        <h1 id="greeting">안녕하세요, 선생님!</h1>
+        <p id="subGreeting">오늘 하루도 응원해요.</p>
+      </div>
+      <div class="date-pill"><i data-icon="calendar"></i><span id="datePill"></span></div>
+    </header>
+
+    <!-- 1행: 시계 / 날씨 / 미세먼지 / 학사일정 -->
+    <section class="stats">
+      <article class="card stat" id="clockCard">
+        <div class="stat-head"><span>지금</span><span class="chip-icon green"><i data-icon="clock"></i></span></div>
+        <div class="clock"><span id="clockHM">--:--</span><span class="clock-s" id="clockS">00</span></div>
+        <div class="period-now" id="periodNow"></div>
+      </article>
+
+      <article class="card stat" id="weatherCard">
+        <div class="stat-head">
+          <span>오늘의 날씨 <small class="muted" id="weatherLoc"></small></span>
+          <button class="chip-icon blue icon-only" id="weatherRefresh" title="새로고침"><i data-icon="refresh"></i></button>
+        </div>
+        <div id="weatherBody" class="weather-body"><span class="muted">불러오는 중…</span></div>
+      </article>
+
+      <article class="card stat" id="dustCard">
+        <div class="stat-head"><span>미세먼지</span><span class="chip-icon amber"><i data-icon="wind"></i></span></div>
+        <div id="dustBody"><span class="muted">불러오는 중…</span></div>
+      </article>
+
+      <article class="card stat" id="weekCard">
+        <div class="stat-head"><span>학사일정</span><span class="chip-icon purple"><i data-icon="flag"></i></span></div>
+        <div id="weekBody"></div>
+      </article>
+    </section>
+
+    <!-- 2행: 시간표 / 할 일 -->
+    <section class="row row-2">
+      <article class="card" id="timetableCard">
+        <div class="card-head">
+          <h2>시간표</h2>
+          <div class="head-actions">
+            <span class="status-pill" id="ttStatus"></span>
+            <button class="link-btn" id="ttEditBtn"></button>
+          </div>
+        </div>
+        <div id="ttBody" class="tt-wrap"></div>
+      </article>
+
+      <article class="card" id="todoCard">
+        <div class="card-head">
+          <h2>할 일</h2>
+          <button class="btn-soft" id="captureBtn"><i data-icon="sparkle"></i>메시지로 추가</button>
+        </div>
+        <div class="todo-filters" id="todoFilters"></div>
+        <form class="todo-add" id="todoAdd" autocomplete="off">
+          <input id="todoInput" placeholder="할 일을 입력하고 Enter" maxlength="200">
+          <select id="todoTag" title="분류">
+            <option value="normal">일반</option>
+            <option value="submit">제출</option>
+            <option value="urgent">긴급</option>
+          </select>
+          <input type="date" id="todoDue" title="마감일">
+          <button class="btn-primary" type="submit"><i data-icon="plus"></i></button>
+        </form>
+        <ul class="todo-list" id="todoList"></ul>
+        <div class="todo-foot">
+          <button class="link-btn small" id="doneBtn"></button>
+          <span class="hint">업무 메시지 캡처는 화면에서 <kbd>Ctrl</kbd>+<kbd>V</kbd> 하면 바로 정리돼요</span>
+        </div>
+      </article>
+    </section>
+
+    <!-- 3행: 달력 / 학생 명렬표 -->
+    <section class="row row-3">
+      <article class="card" id="calendarCard">
+        <div class="card-head">
+          <h2 id="calTitle"></h2>
+          <div class="head-actions">
+            <button class="icon-btn" id="calPrev" title="이전 달"><i data-icon="chevLeft"></i></button>
+            <button class="link-btn small" id="calToday">오늘</button>
+            <button class="icon-btn" id="calNext" title="다음 달"><i data-icon="chevRight"></i></button>
+          </div>
+        </div>
+        <div class="cal-layout">
+          <div>
+            <div class="cal-week"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+            <div class="cal-grid" id="calGrid"></div>
+          </div>
+          <div class="agenda" id="agenda"></div>
+        </div>
+      </article>
+
+      <article class="card" id="rosterCard">
+        <div class="card-head">
+          <h2>학생 명렬표 <small class="muted" id="rosterCount"></small></h2>
+          <div class="head-actions">
+            <label class="search"><i data-icon="search"></i><input id="rosterSearch" placeholder="이름·메모 검색"></label>
+            <button class="btn-soft" id="rosterImport">명단 입력</button>
+            <button class="icon-btn" id="rosterAdd" title="학생 추가"><i data-icon="plus"></i></button>
+          </div>
+        </div>
+        <div id="rosterBody"></div>
+      </article>
+    </section>
+  </main>
+
+  <div class="modal-backdrop" id="modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <header class="modal-head">
+        <h2 id="modalTitle"></h2>
+        <button class="icon-btn" id="modalClose" title="닫기"><i data-icon="x"></i></button>
+      </header>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <aside class="drawer" id="notesDrawer" aria-label="포스트잇 메모" hidden></aside>
+  <button class="memo-fab" id="memoFab" title="새 메모를 모든 창 맨 위에 띄우기"><i data-icon="pin"></i>메모</button>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
