@@ -356,8 +356,21 @@ svg.i {
 .ag-add { display: flex; flex-direction: column; gap: 6px; margin-top: auto; }
 .ag-add .line { display: flex; gap: 6px; }
 .ag-add input { flex: 1; }
-.ag-add input, .ag-add select { border: 1px solid var(--line-strong); border-radius: 10px; padding: 7px 10px; background: #fff; min-width: 0; }
-.ag-add input:focus, .ag-add select:focus { outline: none; border-color: var(--accent); }
+.ag-add input, .ag-add select, .ag-edit input, .ag-edit select { border: 1px solid var(--line-strong); border-radius: 10px; padding: 7px 10px; background: #fff; min-width: 0; }
+.ag-add input:focus, .ag-add select:focus, .ag-edit input:focus, .ag-edit select:focus { outline: none; border-color: var(--accent); }
+.ag-item.editing { display: block; padding: 10px; }
+.ag-edit { display: flex; flex-direction: column; gap: 6px; }
+.ag-edit .line { display: flex; gap: 6px; }
+.ag-edit .ag-e-date { flex: 1; }
+.ag-item .t[title] { cursor: text; }
+.cal-month { display: flex; align-items: center; gap: 2px; }
+.cal-arrow {
+  width: 28px; height: 28px; border: 0; border-radius: 8px; background: none; color: var(--muted);
+  display: grid; place-items: center; padding: 0;
+}
+.cal-arrow:hover { background: var(--bg); color: var(--text); }
+.cal-arrow svg { width: 16px; height: 16px; }
+#calTitle { min-width: 104px; text-align: center; }
 
 /* ---------- 학생 명렬표 ---------- */
 .search { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); border-radius: 10px; padding: 0 10px; height: 32px; color: var(--faint); }

@@ -149,6 +149,11 @@ textarea.box:focus, input.box:focus, .ag-add input:focus, .ag-add select:focus {
 .d-school { background: var(--lav); }
 .agenda { border-left: 1.5px dashed #d4d4cf; }
 .ag-item { background: #fff; border: 1.5px solid var(--ink); }
+.ag-item.editing { background: var(--lime-soft); }
+.ag-edit input, .ag-edit select { border: 1.5px solid var(--ink); border-radius: 14px; }
+.ag-edit input:focus, .ag-edit select:focus { border-color: var(--ink); box-shadow: 0 0 0 3px var(--lime); }
+.cal-arrow { color: var(--ink); }
+.cal-arrow:hover { background: var(--lime-soft); }
 
 /* ---------- 명렬표 ---------- */
 .stu { border: 1.5px solid var(--ink); border-radius: 16px; }

@@ -104,11 +104,15 @@
     <section class="row row-3">
       <article class="card" id="calendarCard">
         <div class="card-head">
-          <h2 id="calTitle"></h2>
+          <div class="cal-month">
+            <button class="cal-arrow" id="calPrev" title="이전 달"><i data-icon="chevLeft"></i></button>
+            <h2 id="calTitle"></h2>
+            <button class="cal-arrow" id="calNext" title="다음 달"><i data-icon="chevRight"></i></button>
+          </div>
           <div class="head-actions">
-            <button class="icon-btn" id="calPrev" title="이전 달"><i data-icon="chevLeft"></i></button>
+            <button class="icon-btn" id="dayPrev" title="전날"><i data-icon="chevLeft"></i></button>
             <button class="link-btn small" id="calToday">오늘</button>
-            <button class="icon-btn" id="calNext" title="다음 달"><i data-icon="chevRight"></i></button>
+            <button class="icon-btn" id="dayNext" title="다음 날"><i data-icon="chevRight"></i></button>
           </div>
         </div>
         <div class="cal-layout">

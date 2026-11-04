@@ -1183,11 +1183,24 @@ function renderAgenda() {
   const ag = $('#agenda');
   ag.innerHTML = `
     <h3>${d.getMonth() + 1}월 ${d.getDate()}일 ${WEEK[d.getDay()]}요일 ${isToday ? '<span class="badge school">오늘</span>' : ''}</h3>
-    ${items.length ? `<ul class="ag-list">${items.map(x => `
+    ${items.length ? `<ul class="ag-list">${items.map(x => x.id && x.id === agEditId ? `
+      <li class="ag-item editing" data-id="${x.id}">
+        <form class="ag-edit" autocomplete="off">
+          <input class="ag-e-title" value="${esc(x.title)}" maxlength="80" title="일정 이름">
+          <div class="line">
+            <select class="ag-e-type" title="분류">${Object.entries(EV_TYPES).map(([k, v]) => `<option value="${k}" ${x.type === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+            <input type="date" class="ag-e-date" value="${x.date}" title="날짜 옮기기">
+          </div>
+          <div class="line">
+            <button class="btn-line" type="button" data-act="cancel">취소</button>
+            <button class="btn-primary" type="submit" style="flex:1">${icon('check')}저장</button>
+          </div>
+        </form>
+      </li>` : `
       <li class="ag-item" ${x.id ? `data-id="${x.id}"` : ''}>
         <span class="badge ${x.type}">${x.type === 'holiday' ? '공휴일' : x.type === 'todo' ? '할 일' : EV_TYPES[x.type]}</span>
-        <span class="t">${esc(x.title)}</span>
-        ${x.id ? `<span class="row-actions"><button class="mini-btn del" data-act="del" title="삭제">${icon('trash')}</button></span>` : ''}
+        <span class="t" ${x.id ? 'title="더블클릭해서 수정"' : ''}>${esc(x.title)}</span>
+        ${x.id ? `<span class="row-actions"><button class="mini-btn" data-act="edit" title="수정">${icon('edit')}</button><button class="mini-btn del" data-act="del" title="삭제">${icon('trash')}</button></span>` : ''}
       </li>`).join('')}</ul>` : '<div class="ag-empty">등록된 일정이 없어요.</div>'}
     <form class="ag-add" id="agAdd" autocomplete="off">
       <input id="agTitle" placeholder="이 날 일정 추가 (예: 현장체험학습)" maxlength="80">
@@ -1202,15 +1215,48 @@ $('#calGrid').addEventListener('click', e => {
   const b = e.target.closest('[data-date]');
   if (!b) return;
   calSel = b.dataset.date;
+  agEditId = null;
   const d = parseYmd(calSel);
   if (d.getMonth() !== calCursor.getMonth()) calCursor = new Date(d.getFullYear(), d.getMonth(), 1);
   renderCalendar();
 });
+// 제목 옆 화살표: 한 달씩 / '오늘' 옆 화살표: 하루씩
 $('#calPrev').addEventListener('click', () => { calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() - 1, 1); renderCalendar(); });
 $('#calNext').addEventListener('click', () => { calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() + 1, 1); renderCalendar(); });
-$('#calToday').addEventListener('click', () => { const n = new Date(); calCursor = new Date(n.getFullYear(), n.getMonth(), 1); calSel = ymd(n); renderCalendar(); });
+function selectDay(date) {
+  calSel = ymd(date);
+  calCursor = new Date(date.getFullYear(), date.getMonth(), 1);
+  agEditId = null;
+  renderCalendar();
+}
+$('#calToday').addEventListener('click', () => selectDay(new Date()));
+$('#dayPrev').addEventListener('click', () => selectDay(addDays(parseYmd(calSel), -1)));
+$('#dayNext').addEventListener('click', () => selectDay(addDays(parseYmd(calSel), 1)));
+
+let agEditId = null; // 수정 중인 일정
+function startEditEvent(id) {
+  agEditId = id;
+  renderAgenda();
+  const inp = $('#agenda .ag-e-title');
+  if (inp) { inp.focus(); inp.select(); }
+}
 $('#agenda').addEventListener('submit', e => {
   e.preventDefault();
+  if (e.target.classList.contains('ag-edit')) {
+    const ev = S.events.find(x => x.id === agEditId);
+    const f = e.target;
+    const title = $('.ag-e-title', f).value.trim();
+    if (!ev || !title) return;
+    const newDate = $('.ag-e-date', f).value || ev.date;
+    const moved = newDate !== ev.date;
+    Object.assign(ev, { title, type: $('.ag-e-type', f).value, date: newDate });
+    save();
+    agEditId = null;
+    if (moved) { selectDay(parseYmd(newDate)); toast(`${md(parseYmd(newDate))}로 옮겼어요.`); }
+    else renderCalendar();
+    renderWeek(); renderHeader();
+    return;
+  }
   const title = $('#agTitle').value.trim();
   if (!title) return;
   S.events.push({ id: uid(), date: calSel, title, type: $('#agType').value });
@@ -1219,11 +1265,22 @@ $('#agenda').addEventListener('submit', e => {
   $('#agTitle').focus();
 });
 $('#agenda').addEventListener('click', e => {
-  const b = e.target.closest('[data-act="del"]');
-  if (!b) return;
-  const id = b.closest('.ag-item').dataset.id;
-  S.events = S.events.filter(x => x.id !== id);
-  save(); renderCalendar(); renderWeek(); renderHeader();
+  const act = e.target.closest('[data-act]')?.dataset.act;
+  if (!act) return;
+  const id = e.target.closest('.ag-item')?.dataset.id;
+  if (act === 'edit') startEditEvent(id);
+  else if (act === 'cancel') { agEditId = null; renderAgenda(); }
+  else if (act === 'del') {
+    S.events = S.events.filter(x => x.id !== id);
+    save(); renderCalendar(); renderWeek(); renderHeader();
+  }
+});
+$('#agenda').addEventListener('dblclick', e => {
+  const li = e.target.closest('.ag-item[data-id]:not(.editing)');
+  if (li) startEditEvent(li.dataset.id);
+});
+$('#agenda').addEventListener('keydown', e => {
+  if (e.key === 'Escape' && agEditId) { e.stopPropagation(); agEditId = null; renderAgenda(); }
 });
 
 /* =========================================================
