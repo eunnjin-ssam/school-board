@@ -54,6 +54,12 @@ body { flex-direction: column; background: transparent; }
 }
 .page-head h1 { font-size: 40px; font-weight: 800; color: var(--ink); letter-spacing: -.035em; }
 .page-head p { color: var(--muted); font-size: 15px; }
+.brief-box { border: var(--bw) solid var(--ink); border-radius: 18px; }
+.brief-box:first-child { background: var(--lime-soft); }
+.brief-tt li { background: #fff; border: var(--bw) solid var(--ink); }
+.brief-tt li small { background: var(--ink); color: var(--lime); }
+.check-row input { accent-color: var(--ink); }
+.sync-box { border: var(--bw) solid var(--ink); }
 .date-pill { border: var(--bw) solid var(--ink); background: var(--lime); font-weight: 700; }
 .date-pill svg { color: var(--ink); }
 .folder-chip { border: var(--bw) solid var(--ink); font-weight: 700; }

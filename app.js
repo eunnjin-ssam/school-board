@@ -53,6 +53,7 @@ const ICONS = {
   sticky: '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5V14l-6 6H5.5A1.5 1.5 0 0 1 4 18.5z"/><path d="M14 20v-4.5a1.5 1.5 0 0 1 1.5-1.5H20M8 9h8M8 12.5h4"/>',
   pin: '<path d="M9 3.5h6l-1 5.5 3.5 3.5h-11L10 9z"/><path d="M12 12.5V21"/>',
   arrowRight: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>',
   folder: '<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.8M12 17.2v.1"/>',
   file: '<path d="M6 3h8l5 5v11.5A1.5 1.5 0 0 1 17.5 21h-11A1.5 1.5 0 0 1 5 19.5v-15A1.5 1.5 0 0 1 6.5 3z"/><path d="M14 3v5h5M9 13l-1.5 2L9 17M15 13l1.5 2-1.5 2"/>',
@@ -84,6 +85,7 @@ const DEFAULT_STATE = {
     loc: { name: '서울 중구', lat: 37.5636, lon: 126.9976 },
     sem1Start: '2026-03-03', sem2Start: '2026-08-24',
     ddayLabel: '', ddayDate: '',
+    morningBrief: true, // 하루 처음 켤 때 '오늘 요약' 보여 주기
     aiModel: 'claude-haiku-5-5',
   },
   timetable: {
@@ -253,7 +255,7 @@ function tick() {
   $('#clockS').textContent = pad(now.getSeconds());
   if (now.getMinutes() !== lastMinute) {
     lastMinute = now.getMinutes();
-    if (ymd(now) !== lastDay) { lastDay = ymd(now); calSel = lastDay; calCursor = new Date(now.getFullYear(), now.getMonth(), 1); renderAll(); }
+    if (ymd(now) !== lastDay) { lastDay = ymd(now); calSel = lastDay; calCursor = new Date(now.getFullYear(), now.getMonth(), 1); renderAll(); maybeAutoBrief(); }
     renderHeader();
     renderPeriodNow();
     if (!ttEdit) renderTimetable();
@@ -300,6 +302,7 @@ async function loadWeather(force = false) {
   weatherLoading = false;
   $('#weatherRefresh').classList.remove('spin');
   renderWeather();
+  refreshBriefWeather();
 }
 
 function pmGrade(v, kind) {
@@ -1440,6 +1443,7 @@ function openSettings() {
       <label class="field"><span>D-day 이름</span><input id="sDdayL" value="${esc(st.ddayLabel)}" placeholder="예: 겨울방학"></label>
       <label class="field"><span>D-day 날짜</span><input type="date" id="sDdayD" value="${st.ddayDate}"></label>
     </div>
+    <label class="check-row"><input type="checkbox" id="sBrief" ${st.morningBrief !== false ? 'checked' : ''}> 하루 처음 켤 때 <b>오늘 요약</b>(일정·마감·시간표·날씨) 보여 주기</label>
 
     <div class="section-title">날씨 지역</div>
     <label class="field"><span>현재: <b id="sLocName">${esc(loc.name)}</b></span>
@@ -1530,6 +1534,7 @@ function openSettings() {
       teacher: $('#sTeacher').value.trim(), school: $('#sSchool').value.trim(), className: $('#sClass').value.trim(),
       sem1Start: $('#sSem1').value, sem2Start: $('#sSem2').value,
       ddayLabel: $('#sDdayL').value.trim(), ddayDate: $('#sDdayD').value,
+      morningBrief: $('#sBrief').checked,
       aiModel: $('#sAiModel').value,
     });
     const newKey = $('#sAiKey').value.trim();
@@ -2142,6 +2147,114 @@ folderBar.addEventListener('click', e => {
 });
 
 /* =========================================================
+   아침 알림: 하루 처음 켤 때 오늘 챙길 것을 한 화면에 모아 보여 줍니다
+   ========================================================= */
+const BRIEF_KEY = 'schoolboard.briefDate'; // 이 컴퓨터에서 오늘 이미 봤는지 (컴퓨터마다 따로)
+let briefOpen = false;
+
+function briefWeatherHtml() {
+  const c = S.cache.weather;
+  if (!c || ymd(new Date(c.at)) !== ymd(new Date())) return '<p class="brief-empty">날씨를 불러오는 중이에요…</p>';
+  const { w, a } = c;
+  const [desc, emo] = wmo(w.current.weather_code, w.current.is_day);
+  const hi = Math.round(w.daily.temperature_2m_max[0]), lo = Math.round(w.daily.temperature_2m_min[0]);
+  const rain = w.daily.precipitation_probability_max?.[0] ?? 0;
+  const grades = [pmGrade(a?.current?.pm10, 'pm10'), pmGrade(a?.current?.pm2_5, 'pm25')].filter(Boolean);
+  const dust = grades.sort((x, y) => y.i - x.i)[0];
+  const tips = [];
+  if (rain >= 60) tips.push('비 소식이 있어요. 우산을 챙기도록 안내하고 실내 체육을 준비해요.');
+  if (dust && dust.i >= 2) tips.push('미세먼지가 나빠요. 실외 활동은 줄이고 환기는 짧게 해요.');
+  if (hi >= 30) tips.push('더운 날이에요. 물 마시기와 그늘 쉬기를 챙겨요.');
+  if (lo <= -5) tips.push('추운 날이에요. 외투와 실내 온도를 챙겨요.');
+  return `
+    <div class="brief-weather"><span class="weather-emoji">${emo}</span>
+      <div><b>${desc} ${Math.round(w.current.temperature_2m)}°</b><div class="sub">최고 ${hi}° · 최저 ${lo}° · 강수 ${rain}%</div></div>
+      ${dust ? `<span class="badge brief-dust g-${dust.key}">미세먼지 ${dust.label}</span>` : ''}
+    </div>
+    ${tips.length ? `<ul class="brief-tips">${tips.map(t => `<li>${t}</li>`).join('')}</ul>` : '<p class="brief-empty">특별히 챙길 날씨는 없어요.</p>'}`;
+}
+
+function briefHtml() {
+  const now = new Date(), t0 = today0(), ts = ymd(t0), tm = ymd(addDays(t0, 1));
+  const meta = [`${now.getMonth() + 1}월 ${now.getDate()}일 ${WEEK[now.getDay()]}요일`];
+  const sem = semesterInfo(t0);
+  if (sem) meta.push(`${sem.label} ${sem.week}주차`);
+  const { ddayLabel, ddayDate } = S.settings;
+  if (ddayDate) {
+    const n = dayDiff(t0, parseYmd(ddayDate));
+    if (n >= 0) meta.push(`${esc(ddayLabel || '디데이')} ${n ? `D-${n}` : 'D-DAY'}`);
+  }
+
+  const evs = [...(HOLIDAYS[ts] ? [{ title: HOLIDAYS[ts], type: 'holiday' }] : []), ...S.events.filter(e => e.date === ts)]
+    .sort((x, y) => x.title.localeCompare(y.title, 'ko'));
+  const due = sortedTodos().filter(t => t.due && t.due <= tm);
+  const rest = S.todos.length - due.length;
+
+  const dow = now.getDay();
+  const isSchoolDay = dow >= 1 && dow <= 5 && !HOLIDAYS[ts];
+  const classes = isSchoolDay ? S.timetable.grid[dow - 1].map((v, i) => ({ v, i, sp: S.timetable.special[dow - 1][i] })).filter(x => x.v) : [];
+
+  return `
+    <p class="brief-meta">${meta.join(' · ')}</p>
+    <div class="brief-grid">
+      <section class="brief-box">
+        <h3>${icon('calendar')}오늘 일정</h3>
+        ${evs.length ? `<ul class="brief-list">${evs.map(e => `<li><span class="badge ${e.type}">${e.type === 'holiday' ? '공휴일' : EV_TYPES[e.type]}</span>${esc(e.title)}</li>`).join('')}</ul>` : '<p class="brief-empty">오늘 등록된 일정은 없어요.</p>'}
+      </section>
+      <section class="brief-box">
+        <h3>${icon('clock')}마감 챙기기</h3>
+        ${due.length ? `<ul class="brief-list">${due.map(t => { const d = dueInfo(t.due); return `<li><span class="due ${d.cls}">${d.text}</span>${esc(t.text)}</li>`; }).join('')}</ul>` : '<p class="brief-empty">오늘·내일 마감인 일은 없어요.</p>'}
+        ${rest > 0 ? `<p class="sub">그 밖에 할 일 ${rest}개가 더 있어요.</p>` : ''}
+      </section>
+      <section class="brief-box">
+        <h3>${icon('table')}오늘 시간표</h3>
+        ${classes.length ? `<ol class="brief-tt">${classes.map(x => `<li class="${x.sp ? 'sp' : ''}"><small>${x.i + 1}</small>${esc(x.v)}</li>`).join('')}</ol>
+          ${classes.some(x => x.sp) ? '<p class="sub">흐린 과목은 교과 선생님 수업이에요.</p>' : ''}` : `<p class="brief-empty">${isSchoolDay ? '시간표가 비어 있어요.' : '오늘은 수업이 없어요.'}</p>`}
+      </section>
+      <section class="brief-box">
+        <h3>${icon('sun')}날씨·미세먼지</h3>
+        <div id="briefWeather">${briefWeatherHtml()}</div>
+      </section>
+    </div>
+    <div class="modal-actions brief-actions">
+      <label class="check-row"><input type="checkbox" id="briefOff"> 다음부터 자동으로 띄우지 않기</label>
+      <button class="btn-primary" id="briefOk">${icon('check')}확인</button>
+    </div>`;
+}
+
+function openBrief() {
+  const h = new Date().getHours();
+  const who = S.settings.teacher ? `${S.settings.teacher} 선생님` : '선생님';
+  const title = h < 12 ? `좋은 아침이에요, ${who}!` : '오늘 한눈에 보기';
+  const body = openModal(title, briefHtml(), {
+    wide: true,
+    onClose: () => {
+      briefOpen = false;
+      try { localStorage.setItem(BRIEF_KEY, ymd(new Date())); } catch (e) { /* 무시 */ }
+    },
+  });
+  briefOpen = true;
+  $('#briefOk', body).addEventListener('click', closeModal);
+  $('#briefOk', body).focus();
+  $('#briefOff', body).addEventListener('change', e => {
+    S.settings.morningBrief = !e.target.checked;
+    save();
+    toast(e.target.checked ? '아침 알림을 껐어요. 설정이나 위쪽 “오늘 요약” 버튼으로 언제든 볼 수 있어요.' : '아침 알림을 다시 켰어요.');
+  });
+}
+function refreshBriefWeather() {
+  const el = briefOpen && document.getElementById('briefWeather');
+  if (el) el.innerHTML = briefWeatherHtml();
+}
+function maybeAutoBrief() {
+  if (S.settings.morningBrief === false || !modalEl.hidden) return;
+  let seen = '';
+  try { seen = localStorage.getItem(BRIEF_KEY) || ''; } catch (e) { /* 무시 */ }
+  if (seen !== ymd(new Date())) openBrief();
+}
+$('#briefBtn').addEventListener('click', openBrief);
+
+/* =========================================================
    사이드바 · 시작
    ========================================================= */
 $$('.nav-btn[data-target]').forEach(b => b.addEventListener('click', () => {
@@ -2181,4 +2294,5 @@ tick();
 setInterval(tick, 1000);
 loadWeather();
 setInterval(() => loadWeather(true), 30 * 60e3);
-syncNow();
+// 다른 컴퓨터에서 바뀐 내용을 먼저 받아온 뒤 아침 알림을 띄웁니다 (인터넷이 느리면 5초만 기다림)
+Promise.race([syncNow(), new Promise(r => setTimeout(r, 5000))]).finally(maybeAutoBrief);

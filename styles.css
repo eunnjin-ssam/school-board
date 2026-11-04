@@ -416,6 +416,32 @@ textarea.box, input.box { width: 100%; resize: vertical; }
 
 .period-row { display: grid; grid-template-columns: 56px 1fr 14px 1fr 30px; gap: 6px; align-items: center; margin-bottom: 6px; }
 .period-row input { border: 1px solid var(--line-strong); border-radius: 9px; padding: 6px 8px; }
+/* 아침 알림 */
+.head-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+#briefBtn svg { width: 17px; height: 17px; }
+.check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #46524c; margin: 2px 0 10px; cursor: pointer; }
+.check-row input { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
+.brief-meta { margin: -4px 0 14px; color: var(--muted); font-weight: 600; }
+.brief-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.brief-box { border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; min-width: 0; }
+.brief-box h3 { display: flex; align-items: center; gap: 7px; margin: 0 0 10px; font-size: 14.5px; font-weight: 700; }
+.brief-box h3 svg { width: 17px; height: 17px; }
+.brief-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.brief-list li { display: flex; align-items: baseline; gap: 8px; font-weight: 500; overflow-wrap: anywhere; }
+.brief-list .badge, .brief-list .due { flex: none; }
+.brief-empty { margin: 0; color: var(--faint); font-size: 13px; }
+.brief-tt { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.brief-tt li { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px 5px 6px; border-radius: 999px; background: var(--bg); font-weight: 600; font-size: 13.5px; }
+.brief-tt li small { width: 20px; height: 20px; border-radius: 50%; background: #fff; display: grid; place-items: center; font-size: 11px; color: var(--muted); }
+.brief-tt li.sp { opacity: .5; }
+.brief-weather { display: flex; align-items: center; gap: 12px; }
+.brief-weather .weather-emoji { font-size: 32px; }
+.brief-dust { margin-left: auto; background: #fff; border: 1px solid currentColor; }
+.brief-tips { margin: 10px 0 0; padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+.brief-actions { justify-content: space-between; align-items: center; }
+.brief-actions .check-row { margin: 0; }
+@media (max-width: 720px) { .brief-grid { grid-template-columns: 1fr; } }
+
 .sync-box { border: 1px solid var(--line-strong); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
 #sSyncState.error { color: var(--red); font-weight: 600; }
 #settingsBtn { position: relative; }
