@@ -149,7 +149,9 @@ let modalOnClose = null;
 function openModal(title, html, opts = {}) {
   if (!modalEl.hidden) closeModal();
   $('#modalTitle').textContent = title;
-  const body = $('#modalBody');
+  // 매번 새 요소로 바꿔서, 이전 창에서 붙인 클릭 처리가 쌓여 여러 번 실행되지 않게 함
+  const body = $('#modalBody').cloneNode(false);
+  $('#modalBody').replaceWith(body);
   body.innerHTML = html;
   hydrateIcons(body);
   $('.modal', modalEl).classList.toggle('wide', !!opts.wide);
