@@ -82,7 +82,7 @@ svg.i {
 .date-pill svg { width: 18px; height: 18px; color: var(--muted); }
 
 /* ---------- 자주 쓰는 폴더 ---------- */
-.folder-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -6px 0 20px; }
+.folder-bar { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; margin: -6px 0 20px; }
 .folder-chip {
   display: inline-flex; align-items: center; gap: 7px; padding: 8px 15px; border-radius: 999px;
   border: 1px solid var(--line-strong); background: var(--card); color: var(--text);
