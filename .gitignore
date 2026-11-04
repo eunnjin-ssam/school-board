@@ -3,5 +3,7 @@
 *.txt
 # 스쿨보드 데이터 백업 (학생 정보 포함)
 스쿨보드-백업-*.json
+# 폴더 열기 도우미의 비밀 열쇠 (컴퓨터마다 설치할 때 만들어짐)
+folder-opener/helper-token.js
 # Claude 로컬 설정
 .claude/

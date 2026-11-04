@@ -1757,6 +1757,21 @@ function openHtml(f) {
 
 function openFolder(f) {
   if (isHtml(f.path)) { openHtml(f); return; }
+  // 경로를 base64(영문·숫자)로 감싸 보냄: 도우미가 이 모양의 주소만 받아서, 이상한 글자가 끼어들 틈이 없어요
+  const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(f.path))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  // 1) 이 컴퓨터에서 켜져 있는 도우미에게 직접 부탁 (일부 학교 PC 크롬은 2번 방식을 막아요)
+  const H = window.SCHOOLBOARD_HELPER;
+  if (H && H.token) {
+    fetch(`http://127.0.0.1:${H.port}/open?t=${H.token}&p=${b64}`, { cache: 'no-store' })
+      .then(r => { if (!r.ok) toast(r.status === 403 ? '도우미를 다시 설치해 주세요.' : '열지 못했어요. 경로가 맞는지 확인해 주세요.'); })
+      .catch(() => openViaProtocol(b64));   // 도우미가 꺼져 있으면 2번 방식으로
+    return;
+  }
+  openViaProtocol(b64);
+}
+
+// 2) 브라우저의 주소 연결(schoolboard-folder:)로 열기
+function openViaProtocol(b64) {
   // 탐색기가 열리면 이 창이 포커스를 잃어요. 몇 초 안에 그런 일이 없으면 설치 안내를 띄움
   let opened = false;
   const onBlur = () => { opened = true; };
@@ -1765,7 +1780,7 @@ function openFolder(f) {
     window.removeEventListener('blur', onBlur);
     if (!opened && document.hasFocus()) toast('폴더가 안 열렸나요?', { label: '해결 방법', fn: openFolderHelp });
   }, 4000);
-  location.href = 'schoolboard-folder:' + encodeURIComponent(f.path);
+  location.href = 'schoolboard-folder:b64:' + b64;
 }
 
 function openFolderForm(id) {
@@ -1808,7 +1823,8 @@ function openFolderHelp() {
   openModal('바로가기 사용법', `
     <ol class="help-steps">
       <li><b>처음 한 번만:</b> 스쿨보드 폴더 안의 <b>folder-opener</b> 폴더에서 <b>폴더열기-설치</b>를 더블클릭하세요. 컴퓨터마다 한 번씩 해야 해요(집, 학교 따로).</li>
-      <li>바로가기를 누르면 브라우저가 앱을 열지 물어볼 수 있어요. <b>열기</b>를 누르면 탐색기가 열려요. <b>항상 허용</b> 칸이 보이면 체크해 두세요.</li>
+      <li>설치하면 작은 도우미 프로그램이 컴퓨터를 켤 때 같이 켜져서(화면에는 안 보여요) 스쿨보드의 부탁을 받아 폴더를 열어 줘요. 설치한 뒤에는 스쿨보드를 <b>새로고침(F5)</b> 하세요.</li>
+      <li>그래도 안 열리면 <b>폴더열기-설치</b>를 한 번 더 실행해 보세요. 브라우저가 앱을 열지 물으면 <b>열기</b>를 누르세요.</li>
       <li>경로는 탐색기에서 폴더를 오른쪽 클릭 → <b>경로로 복사</b>로 가져올 수 있어요.</li>
       <li>집과 학교의 사용자 이름이 다르면 <code>%USERPROFILE%\\Desktop\\수업자료</code>처럼 쓰면 두 컴퓨터에서 모두 열려요.</li>
       <li><b>프로그램</b>은 바탕화면의 바로가기(예: 한글, 엑셀)를 오른쪽 클릭 → <b>경로로 복사</b>해서 넣으세요. 처음 누를 때 Windows가 <b>“허락할까요?”</b> 하고 한 번 물어요. <b>예</b>를 누른 프로그램만 다음부터 바로 열려요.</li>
