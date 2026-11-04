@@ -55,6 +55,8 @@ const ICONS = {
   arrowRight: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   folder: '<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.8M12 17.2v.1"/>',
+  file: '<path d="M6 3h8l5 5v11.5A1.5 1.5 0 0 1 17.5 21h-11A1.5 1.5 0 0 1 5 19.5v-15A1.5 1.5 0 0 1 6.5 3z"/><path d="M14 3v5h5M9 13l-1.5 2L9 17M15 13l1.5 2-1.5 2"/>',
+  app: '<rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 8.5h18M6.5 6.3h.01M9 6.3h.01"/>',
 };
 const icon = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`;
 function hydrateIcons(root = document) {
@@ -1722,26 +1724,37 @@ async function openPip({ fresh = false } = {}) {
 $('#memoFab').addEventListener('click', () => openPip({ fresh: true }));
 
 /* =========================================================
-   자주 쓰는 폴더 바로가기
-   브라우저는 탐색기를 직접 열 수 없어서, folder-opener의 설치 파일이 등록한
-   schoolboard-folder: 주소로 넘기면 Windows가 탐색기로 열어 줍니다.
+   자주 쓰는 폴더 · 프로그램 · HTML 파일 바로가기
+   브라우저는 탐색기나 프로그램을 직접 열 수 없어서, folder-opener의 설치 파일이 등록한
+   schoolboard-folder: 주소로 넘기면 Windows가 열어 줍니다(프로그램은 처음 한 번 허락 필요).
+   HTML 파일은 브라우저가 직접 새 탭으로 엽니다(스쿨보드를 파일로 열었을 때).
    ========================================================= */
 let folderEdit = false;
 const folderBar = $('#folderBar');
 const cleanPath = p => p.trim().replace(/^["']+|["']+$/g, '').replace(/\//g, '\\');
-const folderNameOf = p => cleanPath(p).replace(/\\+$/, '').split('\\').pop() || p;
+const folderNameOf = p => cleanPath(p).replace(/\\+$/, '').split('\\').pop().replace(/\.(html?|lnk|exe|url)$/i, '') || p;
+const isHtml = p => /\.html?$/i.test(p);
+const isProgram = p => /\.(exe|lnk|url|appref-ms)$/i.test(p);
+const linkIcon = p => (isHtml(p) ? 'file' : isProgram(p) ? 'app' : 'folder');
 
 function renderFolders() {
   folderBar.classList.toggle('editing', folderEdit);
-  const chips = S.folders.map(f => `<button class="folder-chip" data-id="${f.id}" title="${esc(folderEdit ? '눌러서 고치기' : f.path)}">${icon(folderEdit ? 'edit' : 'folder')}<span>${esc(f.name)}</span></button>`).join('');
+  const chips = S.folders.map(f => `<button class="folder-chip" data-id="${f.id}" title="${esc(folderEdit ? '눌러서 고치기' : f.path)}">${icon(folderEdit ? 'edit' : linkIcon(f.path))}<span>${esc(f.name)}</span></button>`).join('');
   folderBar.innerHTML = chips + (folderEdit
-    ? `<button class="folder-chip add" data-act="add">${icon('plus')}<span>폴더 추가</span></button><button class="link-btn small" data-act="done">완료</button>`
+    ? `<button class="folder-chip add" data-act="add">${icon('plus')}<span>추가</span></button><button class="link-btn small" data-act="done">완료</button>`
     : S.folders.length
-      ? `<button class="link-btn small" data-act="edit" title="폴더 추가·수정·삭제">${icon('edit')}편집</button>`
-      : `<button class="folder-chip add" data-act="add">${icon('plus')}<span>자주 쓰는 폴더 추가</span></button><button class="link-btn small" data-act="help">${icon('help')}사용법</button>`);
+      ? `<button class="link-btn small" data-act="edit" title="바로가기 추가·수정·삭제">${icon('edit')}편집</button>`
+      : `<button class="folder-chip add" data-act="add">${icon('plus')}<span>자주 쓰는 폴더·프로그램 추가</span></button><button class="link-btn small" data-act="help">${icon('help')}사용법</button>`);
+}
+
+function openHtml(f) {
+  if (location.protocol !== 'file:') { toast('HTML 바로가기는 스쿨보드를 index.html 파일로 열었을 때만 돼요.'); return; }
+  const [drive, ...rest] = f.path.split('\\');
+  window.open(`file:///${drive}/${rest.map(encodeURIComponent).join('/')}`, '_blank');
 }
 
 function openFolder(f) {
+  if (isHtml(f.path)) { openHtml(f); return; }
   // 탐색기가 열리면 이 창이 포커스를 잃어요. 몇 초 안에 그런 일이 없으면 설치 안내를 띄움
   let opened = false;
   const onBlur = () => { opened = true; };
@@ -1755,22 +1768,23 @@ function openFolder(f) {
 
 function openFolderForm(id) {
   const f = S.folders.find(x => x.id === id);
-  const body = openModal(f ? '폴더 바로가기 고치기' : '폴더 바로가기 추가', `
-    <label class="field"><span>폴더 경로 <small>탐색기에서 폴더를 오른쪽 클릭 → <b>경로로 복사</b> 후 붙여넣기</small></span>
+  const body = openModal(f ? '바로가기 고치기' : '바로가기 추가', `
+    <label class="field"><span>폴더 · 프로그램 · HTML 파일 경로 <small>폴더나 바탕화면 바로가기를 오른쪽 클릭 → <b>경로로 복사</b> 후 붙여넣기</small></span>
       <input class="box" id="fdPath" value="${esc(f?.path || '')}" placeholder="C:\\Users\\…\\Desktop\\수업자료" autofocus>
     </label>
-    <label class="field"><span>이름 <small>비워 두면 폴더 이름을 써요</small></span>
+    <label class="field"><span>이름 <small>비워 두면 폴더·프로그램 이름을 써요</small></span>
       <input class="box" id="fdName" value="${esc(f?.name || '')}" maxlength="20" placeholder="예: 수업자료">
     </label>
     <div class="modal-actions">
       ${f ? `<button class="link-btn danger" data-act="del" style="margin-right:auto">${icon('trash')}삭제</button>` : ''}
-      <button class="link-btn small" data-act="help">${icon('help')}폴더가 안 열려요</button>
+      <button class="link-btn small" data-act="help">${icon('help')}안 열려요</button>
       <button class="btn-primary" data-act="save">${f ? '저장' : '추가'}</button>
     </div>`);
   const pathEl = $('#fdPath', body), nameEl = $('#fdName', body);
   const submit = () => {
     const path = cleanPath(pathEl.value);
-    if (!/^([A-Za-z]:\\|%[^%]+%)/.test(path)) { toast('C:\\ 처럼 드라이브 문자로 시작하는 폴더 경로를 넣어 주세요.'); pathEl.focus(); return; }
+    if (!/^([A-Za-z]:\\|%[^%]+%)/.test(path)) { toast('C:\\ 처럼 드라이브 문자로 시작하는 경로를 넣어 주세요.'); pathEl.focus(); return; }
+    if (isHtml(path) && !/^[A-Za-z]:\\/.test(path)) { toast('HTML 파일은 C:\\Users\\… 처럼 전체 경로로 넣어 주세요.'); pathEl.focus(); return; }
     const name = nameEl.value.trim() || folderNameOf(path);
     if (f) Object.assign(f, { path, name });
     else S.folders.push({ id: uid(), path, name });
@@ -1781,7 +1795,7 @@ function openFolderForm(id) {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'save') submit();
     if (act === 'help') openFolderHelp();
-    if (act === 'del' && confirm(`'${f.name}' 바로가기를 삭제할까요? (실제 폴더는 지워지지 않아요)`)) {
+    if (act === 'del' && confirm(`'${f.name}' 바로가기를 삭제할까요? (실제 폴더·파일은 지워지지 않아요)`)) {
       S.folders = S.folders.filter(x => x.id !== f.id);
       save(); renderFolders(); closeModal();
     }
@@ -1789,14 +1803,16 @@ function openFolderForm(id) {
 }
 
 function openFolderHelp() {
-  openModal('폴더 바로가기 사용법', `
+  openModal('바로가기 사용법', `
     <ol class="help-steps">
       <li><b>처음 한 번만:</b> 스쿨보드 폴더 안의 <b>folder-opener</b> 폴더에서 <b>폴더열기-설치</b>를 더블클릭하세요. 컴퓨터마다 한 번씩 해야 해요(집, 학교 따로).</li>
       <li>바로가기를 누르면 브라우저가 앱을 열지 물어볼 수 있어요. <b>열기</b>를 누르면 탐색기가 열려요. <b>항상 허용</b> 칸이 보이면 체크해 두세요.</li>
       <li>경로는 탐색기에서 폴더를 오른쪽 클릭 → <b>경로로 복사</b>로 가져올 수 있어요.</li>
       <li>집과 학교의 사용자 이름이 다르면 <code>%USERPROFILE%\\Desktop\\수업자료</code>처럼 쓰면 두 컴퓨터에서 모두 열려요.</li>
+      <li><b>프로그램</b>은 바탕화면의 바로가기(예: 한글, 엑셀)를 오른쪽 클릭 → <b>경로로 복사</b>해서 넣으세요. 처음 누를 때 Windows가 <b>“허락할까요?”</b> 하고 한 번 물어요. <b>예</b>를 누른 프로그램만 다음부터 바로 열려요.</li>
+      <li><b>HTML 파일</b>도 추가할 수 있어요. 설치 없이 브라우저 새 탭으로 바로 열리고, 경로는 <code>C:\\Users\\…</code>처럼 전체를 써야 해요.</li>
     </ol>
-    <p class="sub">안전을 위해 이 컴퓨터에 있는 <b>폴더</b>만 열 수 있고, 파일·프로그램이나 네트워크 경로(\\\\서버)는 열지 않아요. 연결을 지우려면 <b>폴더열기-제거</b>를 실행하세요.</p>`);
+    <p class="sub">안전을 위해 프로그램·파일은 이 컴퓨터에서 허락한 것만 열리고, 네트워크 경로(\\\\서버)는 열지 않아요. 연결을 지우려면 <b>폴더열기-제거</b>를 실행하세요.</p>`);
 }
 
 folderBar.addEventListener('click', e => {

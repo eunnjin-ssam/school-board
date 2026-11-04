@@ -1,5 +1,5 @@
 ﻿<#
-  스쿨보드 폴더 바로가기를 쓸 수 있게 이 컴퓨터(현재 사용자)에 등록합니다.
+  스쿨보드 폴더·프로그램 바로가기를 쓸 수 있게 이 컴퓨터(현재 사용자)에 등록합니다.
   관리자 권한은 필요 없습니다.  제거: install.ps1 -Uninstall
 #>
 param([switch]$Uninstall)
@@ -13,8 +13,10 @@ $handler = Join-Path $dest 'open-folder.ps1'
 if ($Uninstall) {
   if (Test-Path $regKey) { Remove-Item $regKey -Recurse -Force }
   if (Test-Path $handler) { Remove-Item $handler -Force }
+  $allow = Join-Path $dest 'allowed.txt'   # 허락한 프로그램 목록
+  if (Test-Path $allow) { Remove-Item $allow -Force }
   if ((Test-Path $dest) -and -not (Get-ChildItem $dest -Force)) { Remove-Item $dest -Force }
-  Write-Host '폴더 바로가기 연결을 제거했어요.'
+  Write-Host '폴더·프로그램 바로가기 연결을 제거했어요.'
   exit 0
 }
 
@@ -34,5 +36,5 @@ New-Item -Path "$regKey\shell\open\command" -Force | Out-Null
 Set-ItemProperty -Path "$regKey\shell\open" -Name 'FriendlyAppName' -Value '스쿨보드 폴더 열기'
 Set-ItemProperty -Path "$regKey\shell\open\command" -Name '(default)' -Value $cmd
 
-Write-Host '완료! 이제 스쿨보드의 폴더 바로가기를 누르면 탐색기로 열려요.'
+Write-Host '완료! 이제 스쿨보드의 폴더·프로그램 바로가기를 누르면 열려요.'
 Write-Host '(브라우저가 "열까요?" 하고 물으면 "열기"를 눌러 주세요.)'
