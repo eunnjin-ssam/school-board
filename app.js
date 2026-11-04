@@ -128,7 +128,8 @@ function load() {
 let S = load();
 normalizeGrid();
 
-function save() {
+function save({ localOnly = false } = {}) {
+  if (!localOnly && !applyingRemote) { S.updatedAt = Date.now(); markDirty(); }
   try { localStorage.setItem(KEY, JSON.stringify(S)); }
   catch (e) { toast('저장 공간이 부족해요. 완료한 할 일의 캡처를 비워 주세요.'); }
 }
@@ -291,7 +292,7 @@ async function loadWeather(force = false) {
       fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?${q}&current=pm10,pm2_5&hourly=pm10,pm2_5&forecast_days=1`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
     ]);
     S.cache.weather = { at: Date.now(), lat, lon, w, a };
-    save();
+    save({ localOnly: true }); // 날씨 캐시는 다른 컴퓨터와 맞출 필요 없음
   } catch (e) {
     console.warn('날씨 불러오기 실패', e);
     weatherError = true;
@@ -1466,8 +1467,10 @@ function openSettings() {
 
     <div class="modal-actions"><button class="btn-primary" id="sSave">${icon('check')}저장</button></div>
 
+    ${syncSectionHtml()}
+
     <div class="section-title">데이터</div>
-    <p class="sub" style="margin-top:0">모든 내용은 이 컴퓨터의 브라우저에만 저장돼요. 컴퓨터를 바꾸거나 브라우저 기록을 지우기 전에 백업해 두세요.</p>
+    <p class="sub" style="margin-top:0">${syncCfg() ? '데이터는 이 컴퓨터와 깃허브 비공개 저장소에 함께 저장돼요. 따로 백업 파일을 남겨 둘 수도 있어요.' : '모든 내용은 이 컴퓨터의 브라우저에만 저장돼요. 컴퓨터를 바꾸거나 브라우저 기록을 지우기 전에 백업해 두세요.'}</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn-line" id="sExport">${icon('download')}백업 파일 저장</button>
       <button class="btn-line" id="sImport">${icon('upload')}백업 불러오기</button>
@@ -1550,12 +1553,13 @@ function openSettings() {
     $('#sAiDel').remove();
   });
 
+  wireSyncSection(body);
   $('#sExport', body).addEventListener('click', exportBackup);
   $('#sImport', body).addEventListener('click', () => $('#sImportFile').click());
   $('#sImportFile', body).addEventListener('change', e => importBackup(e.target.files[0]));
   $('#sReset', body).addEventListener('click', () => {
-    if (!confirm('정말 모든 데이터(할 일, 일정, 학생 메모, 시간표)를 지울까요? 되돌릴 수 없어요.')) return;
-    Object.keys(localStorage).filter(k => k === KEY || k === AI_KEY || k.startsWith(IMG_PREFIX)).forEach(k => localStorage.removeItem(k));
+    if (!confirm(`정말 이 컴퓨터의 모든 데이터(할 일, 일정, 학생 메모, 시간표)를 지울까요? 되돌릴 수 없어요.${syncCfg() ? '\n(데이터 맞추기 연결도 끊겨요. 깃허브에 저장된 데이터는 남아 있어요.)' : ''}`)) return;
+    Object.keys(localStorage).filter(k => k === KEY || k === AI_KEY || k === SYNC_CFG || k === SYNC_META || k.startsWith(IMG_PREFIX)).forEach(k => localStorage.removeItem(k));
     location.reload();
   });
 }
@@ -1583,12 +1587,248 @@ function importBackup(file) {
       if (!confirm('백업 파일로 지금 데이터를 덮어쓸까요?')) return;
       Object.keys(localStorage).filter(k => k.startsWith(IMG_PREFIX)).forEach(k => localStorage.removeItem(k));
       Object.entries(data.images || {}).forEach(([id, v]) => { try { localStorage.setItem(IMG_PREFIX + id, v); } catch (e) { /* 용량 초과 시 이미지 생략 */ } });
-      localStorage.setItem(KEY, JSON.stringify(data.state));
+      localStorage.setItem(KEY, JSON.stringify({ ...data.state, updatedAt: Date.now() }));
+      syncMeta.dirty = true; saveMeta(); // 불러온 내용을 다른 컴퓨터에도 보내도록
       location.reload();
     } catch (e) { toast('스쿨보드 백업 파일이 아니에요.'); }
   };
   r.readAsText(file);
 }
+
+/* =========================================================
+   집·학교 데이터 맞추기
+   선생님의 깃허브 '비공개' 저장소에 데이터 파일 하나를 두고 여러 컴퓨터가 함께 씁니다.
+   ========================================================= */
+const SYNC_CFG = 'schoolboard.sync';      // {repo, token}: 이 컴퓨터에만 저장 (백업·동기화에 안 들어감)
+const SYNC_META = 'schoolboard.syncmeta'; // {sha, base, at, dirty}
+const SYNC_PATH = 'schoolboard-data.json';
+// 폴더 바로가기는 컴퓨터마다 경로가 달라서, 날씨 캐시는 필요 없어서 맞추지 않습니다
+const SYNC_KEYS = ['settings', 'timetable', 'events', 'todos', 'done', 'students', 'notes'];
+
+const readJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } };
+const syncCfg = () => readJSON(SYNC_CFG, null);
+// save()가 파일 위쪽에 있어 var로 둡니다 (let이면 선언 전에 읽을 수 없음)
+var syncMeta = readJSON(SYNC_META, { sha: '', base: 0, at: 0, dirty: true });
+var applyingRemote = false;
+let syncBusy = false, syncError = '', syncTimer = null, editSeq = 0;
+function saveMeta() { try { localStorage.setItem(SYNC_META, JSON.stringify(syncMeta)); } catch (e) { /* 무시 */ } }
+function markDirty() {
+  if (!syncMeta) return; // 시작 중
+  editSeq++;
+  syncMeta.dirty = true;
+  saveMeta();
+  scheduleSync(4000);
+}
+function scheduleSync(ms) {
+  if (!syncCfg()) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => syncNow(), ms);
+}
+
+const b64encode = str => {
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+};
+const b64decode = b64 => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s/g, '')), c => c.charCodeAt(0)));
+
+function ghFetch(url, cfg, opts = {}) {
+  return fetch(`https://api.github.com${url}`, {
+    cache: 'no-store',
+    ...opts,
+    headers: { Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(opts.body ? { 'Content-Type': 'application/json' } : {}) },
+  });
+}
+function syncErr(status, where) {
+  const e = new Error(`github ${status}`);
+  e.userMsg = status === 401 ? '토큰이 올바르지 않거나 기간이 지났어요. 설정에서 새 토큰을 넣어 주세요.'
+    : status === 403 ? '토큰에 이 저장소를 고칠 권한이 없어요. 토큰 권한(Contents: Read and write)을 확인해 주세요.'
+    : status === 404 && where === 'repo' ? '저장소를 찾을 수 없어요. 저장소 이름과 토큰이 그 저장소를 쓸 수 있는지 확인해 주세요.'
+    : `깃허브 오류가 났어요 (${status}). 잠시 뒤 다시 해 볼게요.`;
+  return e;
+}
+
+const pickSync = st => Object.fromEntries(SYNC_KEYS.map(k => [k, st[k]]));
+// 두 컴퓨터에서 모두 바뀌었을 때: 목록은 합치고(같은 항목은 더 최근에 저장한 쪽), 설정·시간표는 최근 쪽
+function mergeSync(local, remote, lt, rt) {
+  const [first, second] = lt >= rt ? [local, remote] : [remote, local];
+  const byId = (a = [], b = []) => {
+    const m = new Map();
+    a.forEach(x => m.set(x.id, x));
+    b.forEach(x => { if (!m.has(x.id)) m.set(x.id, x); });
+    return [...m.values()];
+  };
+  const out = { settings: first.settings, timetable: first.timetable };
+  ['events', 'todos', 'done', 'notes'].forEach(k => { out[k] = byId(first[k], second[k]); });
+  out.students = byId(first.students, second.students).map(s => {
+    const o = (second.students || []).find(x => x.id === s.id);
+    return o && o !== s ? { ...s, memos: byId(s.memos, o.memos).sort((a, b) => b.at - a.at) } : s;
+  });
+  const doneIds = new Set(out.done.map(t => t.id)); // 한쪽에서 완료한 일은 완료로
+  out.todos = out.todos.filter(t => !doneIds.has(t.id));
+  return out;
+}
+
+function applyRemote(data, updatedAt) {
+  applyingRemote = true;
+  SYNC_KEYS.forEach(k => { if (data[k] !== undefined) S[k] = data[k]; });
+  S = merge(structuredClone(DEFAULT_STATE), S);
+  S.updatedAt = updatedAt;
+  normalizeGrid();
+  save();
+  applyingRemote = false;
+  renderAll();
+  renderAllNotes();
+}
+
+// 글을 쓰고 있을 때는 다른 컴퓨터의 내용을 덮어씌우지 않고 잠시 미룹니다
+function userIsTyping() {
+  const typing = el => el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
+  return !modalEl.hidden || ttEdit || typing(document.activeElement) || typing(pipWin?.document.activeElement);
+}
+
+async function syncNow({ manual = false } = {}) {
+  const cfg = syncCfg();
+  if (!cfg) return;
+  if (syncBusy) { scheduleSync(2000); return; }
+  syncBusy = true;
+  renderSyncStatus();
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const seq = editSeq;
+      const res = await ghFetch(`/repos/${cfg.repo}/contents/${SYNC_PATH}`, cfg);
+      let remote = null, sha = '';
+      if (res.status === 404) {
+        const repoRes = await ghFetch(`/repos/${cfg.repo}`, cfg);
+        if (!repoRes.ok) throw syncErr(repoRes.status, 'repo');
+      } else if (!res.ok) {
+        throw syncErr(res.status);
+      } else {
+        const j = await res.json();
+        sha = j.sha;
+        remote = JSON.parse(b64decode(j.content));
+      }
+
+      const remoteChanged = !!remote && remote.updatedAt !== syncMeta.base;
+      let next = null;
+      if (remoteChanged) {
+        if (!manual && userIsTyping()) { scheduleSync(15000); break; }
+        if (!syncMeta.dirty) {
+          applyRemote(remote.data, remote.updatedAt);
+          syncMeta = { sha, base: remote.updatedAt, at: Date.now(), dirty: false };
+          saveMeta();
+          break;
+        }
+        next = mergeSync(pickSync(S), remote.data, S.updatedAt || 0, remote.updatedAt || 0);
+        applyRemote(next, Date.now());
+        toast('다른 컴퓨터에서 바뀐 내용과 합쳤어요.');
+      } else if (syncMeta.dirty || !remote) {
+        next = pickSync(S);
+      } else {
+        syncMeta.at = Date.now(); saveMeta();
+        break;
+      }
+
+      const updatedAt = Date.now();
+      const put = await ghFetch(`/repos/${cfg.repo}/contents/${SYNC_PATH}`, cfg, {
+        method: 'PUT',
+        body: JSON.stringify({
+          message: `스쿨보드 데이터 저장 ${new Date(updatedAt).toLocaleString('ko-KR')}`,
+          content: b64encode(JSON.stringify({ app: 'schoolboard', version: 1, updatedAt, data: next }, null, 1)),
+          ...(sha ? { sha } : {}),
+        }),
+      });
+      if (put.status === 409 || put.status === 422) continue; // 그사이 다른 컴퓨터가 저장함: 다시 받아서 합치기
+      if (!put.ok) throw syncErr(put.status);
+      const pj = await put.json();
+      S.updatedAt = updatedAt;
+      localStorage.setItem(KEY, JSON.stringify(S));
+      // 올리는 동안 또 고친 게 있으면 다음에 다시 올립니다
+      syncMeta = { sha: pj.content.sha, base: updatedAt, at: Date.now(), dirty: editSeq !== seq };
+      saveMeta();
+      if (syncMeta.dirty) scheduleSync(2000);
+      break;
+    }
+    syncError = '';
+  } catch (e) {
+    console.warn('동기화 실패', e);
+    const first = !syncError;
+    syncError = e.userMsg || '인터넷에 연결되지 않아 맞추지 못했어요. 연결되면 다시 해 볼게요.';
+    if (first || manual) toast(syncError);
+  }
+  syncBusy = false;
+  renderSyncStatus();
+}
+
+function renderSyncStatus() {
+  const el = document.getElementById('sSyncState');
+  $('#settingsBtn').classList.toggle('has-error', !!syncError && !!syncCfg());
+  if (!el) return;
+  el.textContent = syncBusy ? '맞추는 중…'
+    : syncError ? syncError
+    : syncMeta.at ? `마지막으로 맞춘 시각: ${new Date(syncMeta.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+    : '아직 맞춘 적 없어요.';
+  el.classList.toggle('error', !!syncError);
+}
+
+function syncSectionHtml() {
+  const cfg = syncCfg();
+  return `
+    <div class="section-title">집·학교 데이터 맞추기</div>
+    <p class="sub" style="margin-top:0">깃허브 <b>비공개</b> 저장소를 거쳐 여러 컴퓨터의 할 일·일정·시간표·학생 메모·메모를 똑같이 맞춰요.
+      한쪽에서 고치면 1분 안에 다른 컴퓨터에도 반영돼요. 폴더 바로가기와 할 일에 붙인 캡처 이미지는 컴퓨터마다 따로예요.</p>
+    ${cfg ? `
+      <div class="sync-box">
+        <div><b>연결됨</b> · ${esc(cfg.repo)}</div>
+        <div class="sub" id="sSyncState"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+          <button class="btn-line" id="sSyncNow" type="button">${icon('refresh')}지금 맞추기</button>
+          <button class="btn-line danger" id="sSyncOff" type="button" style="margin-left:auto">연결 끊기</button>
+        </div>
+      </div>` : `
+      <div class="field-row">
+        <label class="field"><span>저장소</span><input id="sSyncRepo" placeholder="깃허브아이디/school-board-data" autocomplete="off"></label>
+        <label class="field"><span>토큰</span><input type="password" id="sSyncToken" placeholder="github_pat_로 시작" autocomplete="off"></label>
+      </div>
+      <small class="sub">토큰은 <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">깃허브 토큰 만들기</a>에서 이 저장소만 고를 수 있게(Contents: Read and write) 만들어 주세요. 토큰은 이 컴퓨터에만 저장돼요.</small>
+      <div style="margin-top:8px"><button class="btn-primary" id="sSyncOn" type="button">${icon('check')}연결하기</button> <span class="sub" id="sSyncState"></span></div>`}`;
+}
+
+function wireSyncSection(body) {
+  renderSyncStatus();
+  $('#sSyncNow', body)?.addEventListener('click', () => syncNow({ manual: true }));
+  $('#sSyncOff', body)?.addEventListener('click', () => {
+    if (!confirm('이 컴퓨터의 연결을 끊을까요? 데이터는 이 컴퓨터와 깃허브에 그대로 남아요.')) return;
+    localStorage.removeItem(SYNC_CFG);
+    syncError = '';
+    closeModal(); openSettings();
+  });
+  $('#sSyncOn', body)?.addEventListener('click', async () => {
+    const repo = $('#sSyncRepo').value.trim().replace(/^https?:\/\/github\.com\//, '').replace(/\/+$/, '').replace(/\.git$/, '');
+    const token = $('#sSyncToken').value.trim();
+    const st = $('#sSyncState');
+    if (!/^[\w.-]+\/[\w.-]+$/.test(repo) || !token) { st.textContent = '저장소 이름(아이디/저장소)과 토큰을 모두 넣어 주세요.'; return; }
+    st.textContent = '확인하는 중…';
+    try {
+      const r = await ghFetch(`/repos/${repo}`, { token });
+      if (!r.ok) throw syncErr(r.status, 'repo');
+      const info = await r.json();
+      if (!info.private) { st.textContent = '공개 저장소예요. 학생 정보가 누구에게나 보일 수 있어서 비공개 저장소만 쓸 수 있어요.'; return; }
+      localStorage.setItem(SYNC_CFG, JSON.stringify({ repo, token }));
+      syncMeta = { sha: '', base: 0, at: 0, dirty: true }; // 처음엔 양쪽 내용을 합칩니다
+      saveMeta();
+      syncError = '';
+      await syncNow({ manual: true });
+      closeModal(); openSettings();
+      if (!syncError) toast('연결했어요. 이제 다른 컴퓨터와 데이터가 맞춰져요.');
+    } catch (e) { st.textContent = e.userMsg || '연결하지 못했어요. 인터넷 연결을 확인해 주세요.'; }
+  });
+}
+
+// 켤 때, 1분마다, 창으로 돌아올 때 맞춥니다
+setInterval(() => syncNow(), 60e3);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncNow(); });
 
 /* =========================================================
    포스트잇 메모
@@ -1941,3 +2181,4 @@ tick();
 setInterval(tick, 1000);
 loadWeather();
 setInterval(() => loadWeather(true), 30 * 60e3);
+syncNow();
