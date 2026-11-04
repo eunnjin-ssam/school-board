@@ -13,7 +13,9 @@
 //  - 파일(프로그램 .exe, 바로가기 .lnk, 문서 등)이면, 이 컴퓨터에서 한 번 허락한 것만 실행합니다.
 //    처음 보는 파일은 확인 창을 띄워 물어보고, "예"를 누른 것만 allowed.txt에 기억합니다.
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -113,7 +115,10 @@ static class SchoolBoardOpen
 
             if (Directory.Exists(p))
             {
-                Process.Start(new ProcessStartInfo("explorer.exe", "\"" + Path.GetFullPath(p) + "\"") { UseShellExecute = true });
+                string dir = Path.GetFullPath(p);
+                HashSet<IntPtr> before = ExplorerWindows();
+                Process.Start(new ProcessStartInfo("explorer.exe", "\"" + dir + "\"") { UseShellExecute = true });
+                BringExplorerToFront(before, Path.GetFileName(dir.TrimEnd('\\')));
                 return 0;
             }
             if (!File.Exists(p)) return 1;
@@ -133,6 +138,60 @@ static class SchoolBoardOpen
             return 0;
         }
         catch { return 1; }
+    }
+
+    // ---------- 폴더 창을 스쿨보드 위로 ----------
+    // 도우미는 화면 뒤에서 도는 프로그램이라, Windows가 새 탐색기 창을 브라우저 뒤에 둬요.
+    // 그래서 새로 생긴 탐색기 창을 찾아 맨 앞으로 올려 줘요.
+    [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc cb, IntPtr l);
+    delegate bool EnumProc(IntPtr h, IntPtr l);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+    [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+    [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
+    [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int cmd);
+    [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
+    [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr h);
+    [DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+
+    static HashSet<IntPtr> ExplorerWindows()
+    {
+        HashSet<IntPtr> set = new HashSet<IntPtr>();
+        EnumWindows((h, l) =>
+        {
+            StringBuilder c = new StringBuilder(64);
+            GetClassName(h, c, 64);
+            if (c.ToString() == "CabinetWClass" && IsWindowVisible(h)) set.Add(h);
+            return true;
+        }, IntPtr.Zero);
+        return set;
+    }
+
+    static void BringExplorerToFront(HashSet<IntPtr> before, string folderName)
+    {
+        // 새 창이 뜰 때까지 최대 3초 기다림. 이미 열려 있던 폴더면 제목이 같은 창을 앞으로
+        for (int i = 0; i < 30; i++)
+        {
+            Thread.Sleep(100);
+            IntPtr target = IntPtr.Zero;
+            foreach (IntPtr h in ExplorerWindows())
+            {
+                if (!before.Contains(h)) { target = h; break; }
+                if (i >= 10 && target == IntPtr.Zero)
+                {
+                    StringBuilder t = new StringBuilder(260);
+                    GetWindowText(h, t, 260);
+                    if (string.Equals(t.ToString(), folderName, StringComparison.OrdinalIgnoreCase)) target = h;
+                }
+            }
+            if (target == IntPtr.Zero) continue;
+            if (IsIconic(target)) ShowWindow(target, 9);   // 최소화돼 있으면 되살림
+            keybd_event(0x12, 0, 0, UIntPtr.Zero);         // Alt 키를 잠깐 눌렀다 떼면 Windows가 창을 앞으로 올리게 허락해 줘요
+            keybd_event(0x12, 0, 2, UIntPtr.Zero);
+            BringWindowToTop(target);
+            SetForegroundWindow(target);
+            return;
+        }
     }
 
     static bool IsAllowed(string allowFile, string full)
