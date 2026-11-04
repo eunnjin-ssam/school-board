@@ -1926,6 +1926,15 @@ function renderAll() {
   renderRoster();
 }
 
+// 테두리를 실제 화면 픽셀 2칸에 딱 맞춥니다.
+// (화면 배율 125%에서 2px는 2.5칸이 되어, 곧은 선과 둥근 모서리의 두께가 달라 보여요)
+function snapBorderWidth() {
+  const dpr = window.devicePixelRatio || 1;
+  document.documentElement.style.setProperty('--bw', `${Math.max(1, Math.floor(2 * dpr)) / dpr}px`);
+  matchMedia(`(resolution: ${dpr}dppx)`).addEventListener('change', snapBorderWidth, { once: true });
+}
+snapBorderWidth();
+
 hydrateIcons();
 renderAll();
 tick();
