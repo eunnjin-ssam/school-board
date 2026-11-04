@@ -16,7 +16,7 @@
   --accent-softer: #f6f4ff;
   --radius: 22px;
   --shadow: none;
-  --bw: 2px; /* 테두리 두께 (정수로 둬야 둥근 모서리가 깔끔해요) */
+  --bw: 1px; /* 테두리 두께 (정수로 둬야 둥근 모서리가 깔끔해요) */
 }
 
 html { background: linear-gradient(#141414 0 190px, #e8e8e6 190px); }
