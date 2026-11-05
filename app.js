@@ -1947,8 +1947,17 @@ function openHtml(f) {
   window.open(`file:///${drive}/${rest.map(encodeURIComponent).join('/')}`, '_blank');
 }
 
+// 웹 사이트는 따로 떨어진 새 창으로: 스쿨보드가 전체화면이어도 그대로 두고, 창을 닫으면 바로 돌아와요.
+// 화면의 85% 크기로 가운데에 띄움
+function openSite(url) {
+  const w = Math.round(screen.availWidth * 0.85), h = Math.round(screen.availHeight * 0.85);
+  const left = Math.round((screen.availWidth - w) / 2) + (screen.availLeft || 0);
+  const top = Math.round((screen.availHeight - h) / 2) + (screen.availTop || 0);
+  window.open(url, '_blank', `noopener,popup,width=${w},height=${h},left=${left},top=${top}`);
+}
+
 function openFolder(f) {
-  if (isWebUrl(f.path)) { window.open(f.path, '_blank', 'noopener'); return; }   // 웹 사이트는 새 탭으로
+  if (isWebUrl(f.path)) { openSite(f.path); return; }
   if (isHtml(f.path)) { openHtml(f); return; }
   // 경로를 base64(영문·숫자)로 감싸 보냄: 도우미가 이 모양의 주소만 받아서, 이상한 글자가 끼어들 틈이 없어요
   const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(f.path))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -2023,7 +2032,7 @@ function openFolderHelp() {
       <li>집과 학교의 사용자 이름이 다르면 <code>%USERPROFILE%\\Desktop\\수업자료</code>처럼 쓰면 두 컴퓨터에서 모두 열려요.</li>
       <li><b>프로그램</b>은 바탕화면의 바로가기(예: 한글, 엑셀)를 오른쪽 클릭 → <b>경로로 복사</b>해서 넣으세요. 처음 누를 때 Windows가 <b>“허락할까요?”</b> 하고 한 번 물어요. <b>예</b>를 누른 프로그램만 다음부터 바로 열려요.</li>
       <li><b>HTML 파일</b>도 추가할 수 있어요. 설치 없이 브라우저 새 탭으로 바로 열리고, 경로는 <code>C:\\Users\\…</code>처럼 전체를 써야 해요.</li>
-      <li><b>웹 사이트</b>는 주소창의 주소(<code>https://…</code>)를 복사해 넣으세요. 설치 없이 새 탭으로 열려요.</li>
+      <li><b>웹 사이트</b>는 주소창의 주소(<code>https://…</code>)를 복사해 넣으세요. 설치 없이 따로 떨어진 새 창으로 열리고, 창을 닫으면 스쿨보드로 돌아와요. (그 창에서 뒤로 가기는 <b>Alt + ←</b>)</li>
     </ol>
     <p class="sub">안전을 위해 프로그램·파일은 이 컴퓨터에서 허락한 것만 열리고, 네트워크 경로(\\\\서버)는 열지 않아요. 연결을 지우려면 <b>폴더열기-제거</b>를 실행하세요.</p>`);
 }
