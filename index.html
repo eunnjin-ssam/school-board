@@ -19,7 +19,8 @@
       <button class="nav-btn" data-target="todoCard" title="할 일"><i data-icon="checkSquare"></i></button>
       <button class="nav-btn" data-target="calendarCard" title="달력"><i data-icon="calendar"></i></button>
       <button class="nav-btn" data-target="rosterCard" title="학생 명렬표"><i data-icon="users"></i></button>
-      <button class="nav-btn" id="notesBtn" title="포스트잇 메모"><i data-icon="sticky"></i></button>
+      <button class="nav-btn" id="notesBtn" title="메모"><i data-icon="sticky"></i></button>
+      <button class="nav-btn" id="classroomBtn" title="학생 화면"><i data-icon="monitor"></i></button>
     </nav>
     <button class="nav-btn" id="settingsBtn" title="설정"><i data-icon="settings"></i></button>
   </aside>
@@ -30,7 +31,10 @@
         <h1 id="greeting">안녕하세요, 선생님!</h1>
         <p id="subGreeting">오늘 하루도 응원해요.</p>
       </div>
-      <div class="date-pill"><i data-icon="calendar"></i><span id="datePill"></span></div>
+      <div class="head-right">
+        <button class="btn-line" id="briefBtn" title="오늘 챙길 것 한눈에 보기"><i data-icon="sun"></i>오늘 요약</button>
+        <div class="date-pill"><i data-icon="calendar"></i><span id="datePill"></span></div>
+      </div>
     </header>
 
     <!-- 자주 쓰는 폴더·HTML 파일 바로가기 (폴더는 folder-opener 폴더의 설치 파일을 한 번 실행해야 열려요) -->
@@ -104,11 +108,15 @@
     <section class="row row-3">
       <article class="card" id="calendarCard">
         <div class="card-head">
-          <h2 id="calTitle"></h2>
+          <div class="cal-month">
+            <button class="cal-arrow" id="calPrev" title="이전 달"><i data-icon="chevLeft"></i></button>
+            <h2 id="calTitle"></h2>
+            <button class="cal-arrow" id="calNext" title="다음 달"><i data-icon="chevRight"></i></button>
+          </div>
           <div class="head-actions">
-            <button class="icon-btn" id="calPrev" title="이전 달"><i data-icon="chevLeft"></i></button>
+            <button class="icon-btn" id="dayPrev" title="전날"><i data-icon="chevLeft"></i></button>
             <button class="link-btn small" id="calToday">오늘</button>
-            <button class="icon-btn" id="calNext" title="다음 달"><i data-icon="chevRight"></i></button>
+            <button class="icon-btn" id="dayNext" title="다음 날"><i data-icon="chevRight"></i></button>
           </div>
         </div>
         <div class="cal-layout">
@@ -151,6 +159,7 @@
 
   <!-- 폴더 열기 도우미 연결 정보 (folder-opener의 설치 파일이 만들어요. 없어도 괜찮아요) -->
   <script src="folder-opener/helper-token.js"></script>
+  <script src="common.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

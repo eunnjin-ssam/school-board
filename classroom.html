@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>우리 반 화면 · 스쿨보드</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23e2f04a'/%3E%3Ctext x='16' y='22' font-size='17' font-weight='700' text-anchor='middle' fill='%23141414' font-family='sans-serif'%3ES%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <link rel="stylesheet" href="classroom.css">
+</head>
+<body>
+  <!-- 학생에게 보여 주는 화면입니다. 할 일·학생 메모 같은 선생님 정보는 넣지 않아요. -->
+  <header class="top">
+    <div class="top-left">
+      <span class="logo">S</span>
+      <b id="className">우리 반</b>
+      <span id="today"></span>
+    </div>
+    <div class="top-right" id="weather"></div>
+  </header>
+
+  <main class="board">
+    <section class="panel now" id="nowPanel">
+      <div class="clock"><span id="hm">--:--</span><span class="sec" id="sec">00</span></div>
+      <div class="period" id="period"></div>
+      <div class="progress"><span id="progress"></span></div>
+      <div class="period-sub" id="periodSub"></div>
+    </section>
+
+    <section class="panel">
+      <h2>오늘 시간표</h2>
+      <ol class="tt" id="tt"></ol>
+    </section>
+
+    <section class="panel notice">
+      <div class="panel-head">
+        <h2>알림장</h2>
+        <button class="ghost" id="noticeEdit">고치기</button>
+      </div>
+      <div class="notice-text" id="noticeText"></div>
+      <textarea class="notice-input" id="noticeInput" hidden placeholder="예) 내일 준비물: 색연필, 가위&#10;수학 익힘책 34~35쪽"></textarea>
+    </section>
+
+    <!-- 수업 도구 (타이머 · 발표자 뽑기 · 모둠 나누기) -->
+    <section class="tool" id="tool" hidden>
+      <button class="tool-close" id="toolClose" title="닫기">✕</button>
+      <div class="tool-body" id="toolBody"></div>
+    </section>
+  </main>
+
+  <footer class="dock">
+    <button class="dock-btn" data-tool="timer">⏱ 타이머 <span class="timer-mini" id="timerMini"></span></button>
+    <button class="dock-btn" data-tool="picker">🎯 발표자 뽑기</button>
+    <button class="dock-btn" data-tool="groups">👥 모둠 나누기</button>
+    <span class="dock-space"></span>
+    <button class="dock-btn ghost" id="fullscreen">⛶ 전체 화면</button>
+  </footer>
+
+  <script src="common.js"></script>
+  <script src="classroom.js"></script>
+</body>
+</html>

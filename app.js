@@ -2,81 +2,8 @@
 /* =========================================================
    스쿨보드 — 교실 컴퓨터용 대시보드
    모든 데이터는 이 브라우저의 localStorage에 저장됩니다.
+   공통 도구(유틸·아이콘·공휴일·교시·날씨 코드)는 common.js에 있습니다.
    ========================================================= */
-
-const KEY = 'schoolboard.v1';
-const IMG_PREFIX = 'schoolboard.img.';
-const DAY_MS = 864e5;
-
-/* ---------- 유틸 ---------- */
-const $ = (s, r = document) => r.querySelector(s);
-const $$ = (s, r = document) => [...r.querySelectorAll(s)];
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-const pad = n => String(n).padStart(2, '0');
-const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const parseYmd = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
-const today0 = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
-const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
-const dayDiff = (a, b) => Math.round((b - a) / DAY_MS);
-const toMin = t => { const [h, m] = String(t || '0:0').split(':').map(Number); return h * 60 + m; };
-const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
-const md = d => `${d.getMonth() + 1}/${d.getDate()}(${WEEK[d.getDay()]})`;
-const mondayOf = d => addDays(d, -((d.getDay() + 6) % 7));
-
-/* ---------- 아이콘 ---------- */
-const ICONS = {
-  grid: '<rect x="3" y="3" width="7.5" height="7.5" rx="1.8"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.8"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.8"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.8"/>',
-  calendar: '<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/>',
-  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-  table: '<rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="M3 9h18M3 15h18M9 3v18"/>',
-  checkSquare: '<rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="m8 12 3 3 5-6"/>',
-  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.3-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c2 .7 3.2 2.5 3.5 5.2"/>',
-  settings: '<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
-  wind: '<path d="M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h8"/>',
-  flag: '<path d="M5 21V4M5 4h12l-2.5 4.5L17 13H5"/>',
-  plus: '<path d="M12 5v14M5 12h14"/>',
-  chevLeft: '<path d="m15 18-6-6 6-6"/>',
-  chevRight: '<path d="m9 18 6-6-6-6"/>',
-  edit: '<path d="M4 20h4L19 9l-4-4L4 16v4z"/>',
-  check: '<path d="m5 12 5 5 9-10"/>',
-  image: '<rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>',
-  refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>',
-  x: '<path d="M18 6 6 18M6 6l12 12"/>',
-  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
-  trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
-  sparkle: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/>',
-  clip: '<path d="M21 11.5 12.5 20a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L10.2 17.7a1.7 1.7 0 0 1-2.4-2.4L15 8"/>',
-  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
-  download: '<path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>',
-  upload: '<path d="M12 21V9M7 14l5-5 5 5M4 3h16"/>',
-  sticky: '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5V14l-6 6H5.5A1.5 1.5 0 0 1 4 18.5z"/><path d="M14 20v-4.5a1.5 1.5 0 0 1 1.5-1.5H20M8 9h8M8 12.5h4"/>',
-  pin: '<path d="M9 3.5h6l-1 5.5 3.5 3.5h-11L10 9z"/><path d="M12 12.5V21"/>',
-  arrowRight: '<path d="M5 12h14M13 6l6 6-6 6"/>',
-  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
-  folder: '<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/>',
-  help: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.8M12 17.2v.1"/>',
-  file: '<path d="M6 3h8l5 5v11.5A1.5 1.5 0 0 1 17.5 21h-11A1.5 1.5 0 0 1 5 19.5v-15A1.5 1.5 0 0 1 6.5 3z"/><path d="M14 3v5h5M9 13l-1.5 2L9 17M15 13l1.5 2-1.5 2"/>',
-  app: '<rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 8.5h18M6.5 6.3h.01M9 6.3h.01"/>',
-};
-const icon = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`;
-function hydrateIcons(root = document) {
-  $$('i[data-icon]', root).forEach(el => { el.outerHTML = icon(el.dataset.icon); });
-}
-
-/* ---------- 공휴일 (2026–2027) ---------- */
-const HOLIDAYS = {
-  '2026-01-01': '신정', '2026-02-16': '설날 연휴', '2026-02-17': '설날', '2026-02-18': '설날 연휴',
-  '2026-03-01': '삼일절', '2026-03-02': '대체공휴일', '2026-05-05': '어린이날', '2026-05-24': '부처님오신날',
-  '2026-05-25': '대체공휴일', '2026-06-03': '지방선거일', '2026-06-06': '현충일', '2026-08-15': '광복절',
-  '2026-08-17': '대체공휴일', '2026-09-24': '추석 연휴', '2026-09-25': '추석', '2026-09-26': '추석 연휴',
-  '2026-10-03': '개천절', '2026-10-05': '대체공휴일', '2026-10-09': '한글날', '2026-12-25': '성탄절',
-  '2027-01-01': '신정', '2027-02-06': '설날 연휴', '2027-02-07': '설날', '2027-02-08': '설날 연휴',
-  '2027-02-09': '대체공휴일', '2027-03-01': '삼일절', '2027-05-05': '어린이날', '2027-05-13': '부처님오신날',
-  '2027-06-06': '현충일', '2027-08-15': '광복절', '2027-08-16': '대체공휴일', '2027-09-14': '추석 연휴',
-  '2027-09-15': '추석', '2027-09-16': '추석 연휴', '2027-10-03': '개천절', '2027-10-04': '대체공휴일',
-  '2027-10-09': '한글날', '2027-10-11': '대체공휴일', '2027-12-25': '성탄절', '2027-12-27': '대체공휴일',
-};
 
 /* ---------- 상태 ---------- */
 const DEFAULT_STATE = {
@@ -85,6 +12,7 @@ const DEFAULT_STATE = {
     loc: { name: '서울 중구', lat: 37.5636, lon: 126.9976 },
     sem1Start: '2026-03-03', sem2Start: '2026-08-24',
     ddayLabel: '', ddayDate: '',
+    morningBrief: true, // 하루 처음 켤 때 '오늘 요약' 보여 주기
     aiModel: 'claude-haiku-5-5',
   },
   timetable: {
@@ -108,6 +36,7 @@ const DEFAULT_STATE = {
   students: [], // {id, no, name, tags: [], memos: [{id, at, text}]}
   notes: [],    // 포스트잇 {id, text, color, updated}
   folders: [],  // 자주 쓰는 폴더 {id, name, path}
+  classNotice: { text: '', at: 0 }, // 학생 화면 알림장
   cache: { weather: null },
 };
 
@@ -129,7 +58,8 @@ function load() {
 let S = load();
 normalizeGrid();
 
-function save() {
+function save({ localOnly = false } = {}) {
+  if (!localOnly && !applyingRemote) { S.updatedAt = Date.now(); markDirty(); }
   try { localStorage.setItem(KEY, JSON.stringify(S)); }
   catch (e) { toast('저장 공간이 부족해요. 완료한 할 일의 캡처를 비워 주세요.'); }
 }
@@ -192,32 +122,6 @@ function toast(msg, action) {
 /* =========================================================
    헤더 · 시계 · 교시
    ========================================================= */
-function periodStatus(now = new Date()) {
-  const dow = now.getDay();
-  if (dow === 0 || dow === 6) return { kind: 'off', text: '주말이에요', sub: '푹 쉬세요!' };
-  const hol = HOLIDAYS[ymd(now)];
-  if (hol) return { kind: 'off', text: `${hol}`, sub: '오늘은 쉬는 날이에요' };
-
-  const { periods, grid, special } = S.timetable;
-  const subj = grid[dow - 1] || [];
-  const isSpecial = i => !!special[dow - 1]?.[i];
-  // 오늘 마지막 수업(과목이 입력된 마지막 교시)
-  let last = subj.reduce((acc, v, i) => (v ? i : acc), -1);
-  if (last < 0) last = periods.length - 1;
-  const mins = now.getHours() * 60 + now.getMinutes();
-  const P = periods.slice(0, last + 1).map((p, i) => ({ i, s: toMin(p.start), e: toMin(p.end), name: subj[i] || '' }));
-
-  if (mins < P[0].s) return { kind: 'before', text: '수업 전', sub: `1교시 ${P[0].name}${isSpecial(0) ? '(교과)' : ''} · ${P[0].s - mins}분 후` };
-  for (let k = 0; k < P.length; k++) {
-    const p = P[k], next = P[k + 1];
-    if (mins >= p.s && mins < p.e) return { kind: 'class', idx: p.i, text: `${p.i + 1}교시 ${p.name}`, sub: `${p.e - mins}분 남음${isSpecial(p.i) ? ' · 교과 수업' : ''}` };
-    if (next && mins >= p.e && mins < next.s) {
-      const lunch = next.s - p.e >= 40;
-      return { kind: lunch ? 'lunch' : 'break', text: lunch ? '점심시간' : '쉬는 시간', sub: `다음 ${next.i + 1}교시 ${next.name}${isSpecial(next.i) ? '(교과)' : ''} · ${next.s - mins}분 후` };
-    }
-  }
-  return { kind: 'after', text: '오늘 수업 끝', sub: '수고 많으셨어요!' };
-}
 
 function renderHeader() {
   const now = new Date();
@@ -253,7 +157,7 @@ function tick() {
   $('#clockS').textContent = pad(now.getSeconds());
   if (now.getMinutes() !== lastMinute) {
     lastMinute = now.getMinutes();
-    if (ymd(now) !== lastDay) { lastDay = ymd(now); calSel = lastDay; calCursor = new Date(now.getFullYear(), now.getMonth(), 1); renderAll(); }
+    if (ymd(now) !== lastDay) { lastDay = ymd(now); calSel = lastDay; calCursor = new Date(now.getFullYear(), now.getMonth(), 1); renderAll(); maybeAutoBrief(); }
     renderHeader();
     renderPeriodNow();
     if (!ttEdit) renderTimetable();
@@ -263,19 +167,6 @@ function tick() {
 /* =========================================================
    날씨 · 미세먼지 (Open-Meteo, 키 불필요)
    ========================================================= */
-const WMO = {
-  0: ['맑음', '☀️'], 1: ['대체로 맑음', '🌤️'], 2: ['구름 조금', '⛅'], 3: ['흐림', '☁️'],
-  45: ['안개', '🌫️'], 48: ['안개', '🌫️'],
-  51: ['이슬비', '🌦️'], 53: ['이슬비', '🌦️'], 55: ['이슬비', '🌦️'], 56: ['어는 이슬비', '🌧️'], 57: ['어는 이슬비', '🌧️'],
-  61: ['약한 비', '🌧️'], 63: ['비', '🌧️'], 65: ['강한 비', '🌧️'], 66: ['어는 비', '🌧️'], 67: ['어는 비', '🌧️'],
-  71: ['약한 눈', '🌨️'], 73: ['눈', '🌨️'], 75: ['많은 눈', '❄️'], 77: ['싸락눈', '🌨️'],
-  80: ['소나기', '🌦️'], 81: ['소나기', '🌦️'], 82: ['강한 소나기', '⛈️'], 85: ['눈 소나기', '🌨️'], 86: ['눈 소나기', '🌨️'],
-  95: ['뇌우', '⛈️'], 96: ['우박·뇌우', '⛈️'], 99: ['우박·뇌우', '⛈️'],
-};
-const wmo = (code, isDay = 1) => {
-  const [d, e] = WMO[code] || ['-', '🌡️'];
-  return [d, !isDay && code <= 1 ? '🌙' : e];
-};
 
 let weatherLoading = false, weatherError = false;
 async function loadWeather(force = false) {
@@ -292,7 +183,7 @@ async function loadWeather(force = false) {
       fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?${q}&current=pm10,pm2_5&hourly=pm10,pm2_5&forecast_days=1`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
     ]);
     S.cache.weather = { at: Date.now(), lat, lon, w, a };
-    save();
+    save({ localOnly: true }); // 날씨 캐시는 다른 컴퓨터와 맞출 필요 없음
   } catch (e) {
     console.warn('날씨 불러오기 실패', e);
     weatherError = true;
@@ -300,14 +191,9 @@ async function loadWeather(force = false) {
   weatherLoading = false;
   $('#weatherRefresh').classList.remove('spin');
   renderWeather();
+  refreshBriefWeather();
 }
 
-function pmGrade(v, kind) {
-  const cut = kind === 'pm10' ? [30, 80, 150] : [15, 35, 75];
-  if (v == null || isNaN(v)) return null;
-  const i = v <= cut[0] ? 0 : v <= cut[1] ? 1 : v <= cut[2] ? 2 : 3;
-  return { i, key: ['good', 'normal', 'bad', 'worst'][i], label: ['좋음', '보통', '나쁨', '매우 나쁨'][i], pct: Math.min(100, v / (cut[2] * 1.2) * 100) };
-}
 
 function renderWeather() {
   $('#weatherLoc').textContent = S.settings.loc.name;
@@ -359,14 +245,6 @@ function renderWeather() {
 /* =========================================================
    학사일정 카드
    ========================================================= */
-function semesterInfo(today) {
-  const cands = [['1학기', S.settings.sem1Start], ['2학기', S.settings.sem2Start]]
-    .filter(([, d]) => d).map(([l, d]) => [l, parseYmd(d)])
-    .filter(([, d]) => d <= today).sort((x, y) => y[1] - x[1]);
-  if (!cands.length) return null;
-  const [label, start] = cands[0];
-  return { label, week: Math.floor(dayDiff(mondayOf(start), today) / 7) + 1 };
-}
 
 function renderWeek() {
   const t = today0();
@@ -1184,11 +1062,24 @@ function renderAgenda() {
   const ag = $('#agenda');
   ag.innerHTML = `
     <h3>${d.getMonth() + 1}월 ${d.getDate()}일 ${WEEK[d.getDay()]}요일 ${isToday ? '<span class="badge school">오늘</span>' : ''}</h3>
-    ${items.length ? `<ul class="ag-list">${items.map(x => `
+    ${items.length ? `<ul class="ag-list">${items.map(x => x.id && x.id === agEditId ? `
+      <li class="ag-item editing" data-id="${x.id}">
+        <form class="ag-edit" autocomplete="off">
+          <input class="ag-e-title" value="${esc(x.title)}" maxlength="80" title="일정 이름">
+          <div class="line">
+            <select class="ag-e-type" title="분류">${Object.entries(EV_TYPES).map(([k, v]) => `<option value="${k}" ${x.type === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+            <input type="date" class="ag-e-date" value="${x.date}" title="날짜 옮기기">
+          </div>
+          <div class="line">
+            <button class="btn-line" type="button" data-act="cancel">취소</button>
+            <button class="btn-primary" type="submit" style="flex:1">${icon('check')}저장</button>
+          </div>
+        </form>
+      </li>` : `
       <li class="ag-item" ${x.id ? `data-id="${x.id}"` : ''}>
         <span class="badge ${x.type}">${x.type === 'holiday' ? '공휴일' : x.type === 'todo' ? '할 일' : EV_TYPES[x.type]}</span>
-        <span class="t">${esc(x.title)}</span>
-        ${x.id ? `<span class="row-actions"><button class="mini-btn del" data-act="del" title="삭제">${icon('trash')}</button></span>` : ''}
+        <span class="t" ${x.id ? 'title="더블클릭해서 수정"' : ''}>${esc(x.title)}</span>
+        ${x.id ? `<span class="row-actions"><button class="mini-btn" data-act="edit" title="수정">${icon('edit')}</button><button class="mini-btn del" data-act="del" title="삭제">${icon('trash')}</button></span>` : ''}
       </li>`).join('')}</ul>` : '<div class="ag-empty">등록된 일정이 없어요.</div>'}
     <form class="ag-add" id="agAdd" autocomplete="off">
       <input id="agTitle" placeholder="이 날 일정 추가 (예: 현장체험학습)" maxlength="80">
@@ -1203,15 +1094,48 @@ $('#calGrid').addEventListener('click', e => {
   const b = e.target.closest('[data-date]');
   if (!b) return;
   calSel = b.dataset.date;
+  agEditId = null;
   const d = parseYmd(calSel);
   if (d.getMonth() !== calCursor.getMonth()) calCursor = new Date(d.getFullYear(), d.getMonth(), 1);
   renderCalendar();
 });
+// 제목 옆 화살표: 한 달씩 / '오늘' 옆 화살표: 하루씩
 $('#calPrev').addEventListener('click', () => { calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() - 1, 1); renderCalendar(); });
 $('#calNext').addEventListener('click', () => { calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() + 1, 1); renderCalendar(); });
-$('#calToday').addEventListener('click', () => { const n = new Date(); calCursor = new Date(n.getFullYear(), n.getMonth(), 1); calSel = ymd(n); renderCalendar(); });
+function selectDay(date) {
+  calSel = ymd(date);
+  calCursor = new Date(date.getFullYear(), date.getMonth(), 1);
+  agEditId = null;
+  renderCalendar();
+}
+$('#calToday').addEventListener('click', () => selectDay(new Date()));
+$('#dayPrev').addEventListener('click', () => selectDay(addDays(parseYmd(calSel), -1)));
+$('#dayNext').addEventListener('click', () => selectDay(addDays(parseYmd(calSel), 1)));
+
+let agEditId = null; // 수정 중인 일정
+function startEditEvent(id) {
+  agEditId = id;
+  renderAgenda();
+  const inp = $('#agenda .ag-e-title');
+  if (inp) { inp.focus(); inp.select(); }
+}
 $('#agenda').addEventListener('submit', e => {
   e.preventDefault();
+  if (e.target.classList.contains('ag-edit')) {
+    const ev = S.events.find(x => x.id === agEditId);
+    const f = e.target;
+    const title = $('.ag-e-title', f).value.trim();
+    if (!ev || !title) return;
+    const newDate = $('.ag-e-date', f).value || ev.date;
+    const moved = newDate !== ev.date;
+    Object.assign(ev, { title, type: $('.ag-e-type', f).value, date: newDate });
+    save();
+    agEditId = null;
+    if (moved) { selectDay(parseYmd(newDate)); toast(`${md(parseYmd(newDate))}로 옮겼어요.`); }
+    else renderCalendar();
+    renderWeek(); renderHeader();
+    return;
+  }
   const title = $('#agTitle').value.trim();
   if (!title) return;
   S.events.push({ id: uid(), date: calSel, title, type: $('#agType').value });
@@ -1220,11 +1144,22 @@ $('#agenda').addEventListener('submit', e => {
   $('#agTitle').focus();
 });
 $('#agenda').addEventListener('click', e => {
-  const b = e.target.closest('[data-act="del"]');
-  if (!b) return;
-  const id = b.closest('.ag-item').dataset.id;
-  S.events = S.events.filter(x => x.id !== id);
-  save(); renderCalendar(); renderWeek(); renderHeader();
+  const act = e.target.closest('[data-act]')?.dataset.act;
+  if (!act) return;
+  const id = e.target.closest('.ag-item')?.dataset.id;
+  if (act === 'edit') startEditEvent(id);
+  else if (act === 'cancel') { agEditId = null; renderAgenda(); }
+  else if (act === 'del') {
+    S.events = S.events.filter(x => x.id !== id);
+    save(); renderCalendar(); renderWeek(); renderHeader();
+  }
+});
+$('#agenda').addEventListener('dblclick', e => {
+  const li = e.target.closest('.ag-item[data-id]:not(.editing)');
+  if (li) startEditEvent(li.dataset.id);
+});
+$('#agenda').addEventListener('keydown', e => {
+  if (e.key === 'Escape' && agEditId) { e.stopPropagation(); agEditId = null; renderAgenda(); }
 });
 
 /* =========================================================
@@ -1383,6 +1318,7 @@ function openSettings() {
       <label class="field"><span>D-day 이름</span><input id="sDdayL" value="${esc(st.ddayLabel)}" placeholder="예: 겨울방학"></label>
       <label class="field"><span>D-day 날짜</span><input type="date" id="sDdayD" value="${st.ddayDate}"></label>
     </div>
+    <label class="check-row"><input type="checkbox" id="sBrief" ${st.morningBrief !== false ? 'checked' : ''}> 하루 처음 켤 때 <b>오늘 요약</b>(일정·마감·시간표·날씨) 보여 주기</label>
 
     <div class="section-title">날씨 지역</div>
     <label class="field"><span>현재: <b id="sLocName">${esc(loc.name)}</b></span>
@@ -1410,8 +1346,10 @@ function openSettings() {
 
     <div class="modal-actions"><button class="btn-primary" id="sSave">${icon('check')}저장</button></div>
 
+    ${syncSectionHtml()}
+
     <div class="section-title">데이터</div>
-    <p class="sub" style="margin-top:0">모든 내용은 이 컴퓨터의 브라우저에만 저장돼요. 컴퓨터를 바꾸거나 브라우저 기록을 지우기 전에 백업해 두세요.</p>
+    <p class="sub" style="margin-top:0">${syncCfg() ? '데이터는 이 컴퓨터와 깃허브 비공개 저장소에 함께 저장돼요. 따로 백업 파일을 남겨 둘 수도 있어요.' : '모든 내용은 이 컴퓨터의 브라우저에만 저장돼요. 컴퓨터를 바꾸거나 브라우저 기록을 지우기 전에 백업해 두세요.'}</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn-line" id="sExport">${icon('download')}백업 파일 저장</button>
       <button class="btn-line" id="sImport">${icon('upload')}백업 불러오기</button>
@@ -1471,6 +1409,7 @@ function openSettings() {
       teacher: $('#sTeacher').value.trim(), school: $('#sSchool').value.trim(), className: $('#sClass').value.trim(),
       sem1Start: $('#sSem1').value, sem2Start: $('#sSem2').value,
       ddayLabel: $('#sDdayL').value.trim(), ddayDate: $('#sDdayD').value,
+      morningBrief: $('#sBrief').checked,
       aiModel: $('#sAiModel').value,
     });
     const newKey = $('#sAiKey').value.trim();
@@ -1494,12 +1433,13 @@ function openSettings() {
     $('#sAiDel').remove();
   });
 
+  wireSyncSection(body);
   $('#sExport', body).addEventListener('click', exportBackup);
   $('#sImport', body).addEventListener('click', () => $('#sImportFile').click());
   $('#sImportFile', body).addEventListener('change', e => importBackup(e.target.files[0]));
   $('#sReset', body).addEventListener('click', () => {
-    if (!confirm('정말 모든 데이터(할 일, 일정, 학생 메모, 시간표)를 지울까요? 되돌릴 수 없어요.')) return;
-    Object.keys(localStorage).filter(k => k === KEY || k === AI_KEY || k.startsWith(IMG_PREFIX)).forEach(k => localStorage.removeItem(k));
+    if (!confirm(`정말 이 컴퓨터의 모든 데이터(할 일, 일정, 학생 메모, 시간표)를 지울까요? 되돌릴 수 없어요.${syncCfg() ? '\n(데이터 맞추기 연결도 끊겨요. 깃허브에 저장된 데이터는 남아 있어요.)' : ''}`)) return;
+    Object.keys(localStorage).filter(k => k === KEY || k === AI_KEY || k === SYNC_CFG || k === SYNC_META || k.startsWith(IMG_PREFIX)).forEach(k => localStorage.removeItem(k));
     location.reload();
   });
 }
@@ -1527,12 +1467,248 @@ function importBackup(file) {
       if (!confirm('백업 파일로 지금 데이터를 덮어쓸까요?')) return;
       Object.keys(localStorage).filter(k => k.startsWith(IMG_PREFIX)).forEach(k => localStorage.removeItem(k));
       Object.entries(data.images || {}).forEach(([id, v]) => { try { localStorage.setItem(IMG_PREFIX + id, v); } catch (e) { /* 용량 초과 시 이미지 생략 */ } });
-      localStorage.setItem(KEY, JSON.stringify(data.state));
+      localStorage.setItem(KEY, JSON.stringify({ ...data.state, updatedAt: Date.now() }));
+      syncMeta.dirty = true; saveMeta(); // 불러온 내용을 다른 컴퓨터에도 보내도록
       location.reload();
     } catch (e) { toast('스쿨보드 백업 파일이 아니에요.'); }
   };
   r.readAsText(file);
 }
+
+/* =========================================================
+   집·학교 데이터 맞추기
+   선생님의 깃허브 '비공개' 저장소에 데이터 파일 하나를 두고 여러 컴퓨터가 함께 씁니다.
+   ========================================================= */
+const SYNC_CFG = 'schoolboard.sync';      // {repo, token}: 이 컴퓨터에만 저장 (백업·동기화에 안 들어감)
+const SYNC_META = 'schoolboard.syncmeta'; // {sha, base, at, dirty}
+const SYNC_PATH = 'schoolboard-data.json';
+// 폴더 바로가기는 컴퓨터마다 경로가 달라서, 날씨 캐시는 필요 없어서 맞추지 않습니다
+const SYNC_KEYS = ['settings', 'timetable', 'events', 'todos', 'done', 'students', 'notes', 'classNotice'];
+
+const readJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } };
+const syncCfg = () => readJSON(SYNC_CFG, null);
+// save()가 파일 위쪽에 있어 var로 둡니다 (let이면 선언 전에 읽을 수 없음)
+var syncMeta = readJSON(SYNC_META, { sha: '', base: 0, at: 0, dirty: true });
+var applyingRemote = false;
+let syncBusy = false, syncError = '', syncTimer = null, editSeq = 0;
+function saveMeta() { try { localStorage.setItem(SYNC_META, JSON.stringify(syncMeta)); } catch (e) { /* 무시 */ } }
+function markDirty() {
+  if (!syncMeta) return; // 시작 중
+  editSeq++;
+  syncMeta.dirty = true;
+  saveMeta();
+  scheduleSync(4000);
+}
+function scheduleSync(ms) {
+  if (!syncCfg()) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => syncNow(), ms);
+}
+
+const b64encode = str => {
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+};
+const b64decode = b64 => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s/g, '')), c => c.charCodeAt(0)));
+
+function ghFetch(url, cfg, opts = {}) {
+  return fetch(`https://api.github.com${url}`, {
+    cache: 'no-store',
+    ...opts,
+    headers: { Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(opts.body ? { 'Content-Type': 'application/json' } : {}) },
+  });
+}
+function syncErr(status, where) {
+  const e = new Error(`github ${status}`);
+  e.userMsg = status === 401 ? '토큰이 올바르지 않거나 기간이 지났어요. 설정에서 새 토큰을 넣어 주세요.'
+    : status === 403 ? '토큰에 이 저장소를 고칠 권한이 없어요. 토큰 권한(Contents: Read and write)을 확인해 주세요.'
+    : status === 404 && where === 'repo' ? '저장소를 찾을 수 없어요. 저장소 이름과 토큰이 그 저장소를 쓸 수 있는지 확인해 주세요.'
+    : `깃허브 오류가 났어요 (${status}). 잠시 뒤 다시 해 볼게요.`;
+  return e;
+}
+
+const pickSync = st => Object.fromEntries(SYNC_KEYS.map(k => [k, st[k]]));
+// 두 컴퓨터에서 모두 바뀌었을 때: 목록은 합치고(같은 항목은 더 최근에 저장한 쪽), 설정·시간표는 최근 쪽
+function mergeSync(local, remote, lt, rt) {
+  const [first, second] = lt >= rt ? [local, remote] : [remote, local];
+  const byId = (a = [], b = []) => {
+    const m = new Map();
+    a.forEach(x => m.set(x.id, x));
+    b.forEach(x => { if (!m.has(x.id)) m.set(x.id, x); });
+    return [...m.values()];
+  };
+  const out = { settings: first.settings, timetable: first.timetable, classNotice: first.classNotice };
+  ['events', 'todos', 'done', 'notes'].forEach(k => { out[k] = byId(first[k], second[k]); });
+  out.students = byId(first.students, second.students).map(s => {
+    const o = (second.students || []).find(x => x.id === s.id);
+    return o && o !== s ? { ...s, memos: byId(s.memos, o.memos).sort((a, b) => b.at - a.at) } : s;
+  });
+  const doneIds = new Set(out.done.map(t => t.id)); // 한쪽에서 완료한 일은 완료로
+  out.todos = out.todos.filter(t => !doneIds.has(t.id));
+  return out;
+}
+
+function applyRemote(data, updatedAt) {
+  applyingRemote = true;
+  SYNC_KEYS.forEach(k => { if (data[k] !== undefined) S[k] = data[k]; });
+  S = merge(structuredClone(DEFAULT_STATE), S);
+  S.updatedAt = updatedAt;
+  normalizeGrid();
+  save();
+  applyingRemote = false;
+  renderAll();
+  renderAllNotes();
+}
+
+// 글을 쓰고 있을 때는 다른 컴퓨터의 내용을 덮어씌우지 않고 잠시 미룹니다
+function userIsTyping() {
+  const typing = el => el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
+  return !modalEl.hidden || ttEdit || typing(document.activeElement) || typing(pipWin?.document.activeElement);
+}
+
+async function syncNow({ manual = false } = {}) {
+  const cfg = syncCfg();
+  if (!cfg) return;
+  if (syncBusy) { scheduleSync(2000); return; }
+  syncBusy = true;
+  renderSyncStatus();
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const seq = editSeq;
+      const res = await ghFetch(`/repos/${cfg.repo}/contents/${SYNC_PATH}`, cfg);
+      let remote = null, sha = '';
+      if (res.status === 404) {
+        const repoRes = await ghFetch(`/repos/${cfg.repo}`, cfg);
+        if (!repoRes.ok) throw syncErr(repoRes.status, 'repo');
+      } else if (!res.ok) {
+        throw syncErr(res.status);
+      } else {
+        const j = await res.json();
+        sha = j.sha;
+        remote = JSON.parse(b64decode(j.content));
+      }
+
+      const remoteChanged = !!remote && remote.updatedAt !== syncMeta.base;
+      let next = null;
+      if (remoteChanged) {
+        if (!manual && userIsTyping()) { scheduleSync(15000); break; }
+        if (!syncMeta.dirty) {
+          applyRemote(remote.data, remote.updatedAt);
+          syncMeta = { sha, base: remote.updatedAt, at: Date.now(), dirty: false };
+          saveMeta();
+          break;
+        }
+        next = mergeSync(pickSync(S), remote.data, S.updatedAt || 0, remote.updatedAt || 0);
+        applyRemote(next, Date.now());
+        toast('다른 컴퓨터에서 바뀐 내용과 합쳤어요.');
+      } else if (syncMeta.dirty || !remote) {
+        next = pickSync(S);
+      } else {
+        syncMeta.at = Date.now(); saveMeta();
+        break;
+      }
+
+      const updatedAt = Date.now();
+      const put = await ghFetch(`/repos/${cfg.repo}/contents/${SYNC_PATH}`, cfg, {
+        method: 'PUT',
+        body: JSON.stringify({
+          message: `스쿨보드 데이터 저장 ${new Date(updatedAt).toLocaleString('ko-KR')}`,
+          content: b64encode(JSON.stringify({ app: 'schoolboard', version: 1, updatedAt, data: next }, null, 1)),
+          ...(sha ? { sha } : {}),
+        }),
+      });
+      if (put.status === 409 || put.status === 422) continue; // 그사이 다른 컴퓨터가 저장함: 다시 받아서 합치기
+      if (!put.ok) throw syncErr(put.status);
+      const pj = await put.json();
+      S.updatedAt = updatedAt;
+      localStorage.setItem(KEY, JSON.stringify(S));
+      // 올리는 동안 또 고친 게 있으면 다음에 다시 올립니다
+      syncMeta = { sha: pj.content.sha, base: updatedAt, at: Date.now(), dirty: editSeq !== seq };
+      saveMeta();
+      if (syncMeta.dirty) scheduleSync(2000);
+      break;
+    }
+    syncError = '';
+  } catch (e) {
+    console.warn('동기화 실패', e);
+    const first = !syncError;
+    syncError = e.userMsg || '인터넷에 연결되지 않아 맞추지 못했어요. 연결되면 다시 해 볼게요.';
+    if (first || manual) toast(syncError);
+  }
+  syncBusy = false;
+  renderSyncStatus();
+}
+
+function renderSyncStatus() {
+  const el = document.getElementById('sSyncState');
+  $('#settingsBtn').classList.toggle('has-error', !!syncError && !!syncCfg());
+  if (!el) return;
+  el.textContent = syncBusy ? '맞추는 중…'
+    : syncError ? syncError
+    : syncMeta.at ? `마지막으로 맞춘 시각: ${new Date(syncMeta.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+    : '아직 맞춘 적 없어요.';
+  el.classList.toggle('error', !!syncError);
+}
+
+function syncSectionHtml() {
+  const cfg = syncCfg();
+  return `
+    <div class="section-title">집·학교 데이터 맞추기</div>
+    <p class="sub" style="margin-top:0">깃허브 <b>비공개</b> 저장소를 거쳐 여러 컴퓨터의 할 일·일정·시간표·학생 메모·메모를 똑같이 맞춰요.
+      한쪽에서 고치면 1분 안에 다른 컴퓨터에도 반영돼요. 폴더 바로가기와 할 일에 붙인 캡처 이미지는 컴퓨터마다 따로예요.</p>
+    ${cfg ? `
+      <div class="sync-box">
+        <div><b>연결됨</b> · ${esc(cfg.repo)}</div>
+        <div class="sub" id="sSyncState"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+          <button class="btn-line" id="sSyncNow" type="button">${icon('refresh')}지금 맞추기</button>
+          <button class="btn-line danger" id="sSyncOff" type="button" style="margin-left:auto">연결 끊기</button>
+        </div>
+      </div>` : `
+      <div class="field-row">
+        <label class="field"><span>저장소</span><input id="sSyncRepo" placeholder="깃허브아이디/school-board-data" autocomplete="off"></label>
+        <label class="field"><span>토큰</span><input type="password" id="sSyncToken" placeholder="github_pat_로 시작" autocomplete="off"></label>
+      </div>
+      <small class="sub">토큰은 <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">깃허브 토큰 만들기</a>에서 이 저장소만 고를 수 있게(Contents: Read and write) 만들어 주세요. 토큰은 이 컴퓨터에만 저장돼요.</small>
+      <div style="margin-top:8px"><button class="btn-primary" id="sSyncOn" type="button">${icon('check')}연결하기</button> <span class="sub" id="sSyncState"></span></div>`}`;
+}
+
+function wireSyncSection(body) {
+  renderSyncStatus();
+  $('#sSyncNow', body)?.addEventListener('click', () => syncNow({ manual: true }));
+  $('#sSyncOff', body)?.addEventListener('click', () => {
+    if (!confirm('이 컴퓨터의 연결을 끊을까요? 데이터는 이 컴퓨터와 깃허브에 그대로 남아요.')) return;
+    localStorage.removeItem(SYNC_CFG);
+    syncError = '';
+    closeModal(); openSettings();
+  });
+  $('#sSyncOn', body)?.addEventListener('click', async () => {
+    const repo = $('#sSyncRepo').value.trim().replace(/^https?:\/\/github\.com\//, '').replace(/\/+$/, '').replace(/\.git$/, '');
+    const token = $('#sSyncToken').value.trim();
+    const st = $('#sSyncState');
+    if (!/^[\w.-]+\/[\w.-]+$/.test(repo) || !token) { st.textContent = '저장소 이름(아이디/저장소)과 토큰을 모두 넣어 주세요.'; return; }
+    st.textContent = '확인하는 중…';
+    try {
+      const r = await ghFetch(`/repos/${repo}`, { token });
+      if (!r.ok) throw syncErr(r.status, 'repo');
+      const info = await r.json();
+      if (!info.private) { st.textContent = '공개 저장소예요. 학생 정보가 누구에게나 보일 수 있어서 비공개 저장소만 쓸 수 있어요.'; return; }
+      localStorage.setItem(SYNC_CFG, JSON.stringify({ repo, token }));
+      syncMeta = { sha: '', base: 0, at: 0, dirty: true }; // 처음엔 양쪽 내용을 합칩니다
+      saveMeta();
+      syncError = '';
+      await syncNow({ manual: true });
+      closeModal(); openSettings();
+      if (!syncError) toast('연결했어요. 이제 다른 컴퓨터와 데이터가 맞춰져요.');
+    } catch (e) { st.textContent = e.userMsg || '연결하지 못했어요. 인터넷 연결을 확인해 주세요.'; }
+  });
+}
+
+// 켤 때, 1분마다, 창으로 돌아올 때 맞춥니다
+setInterval(() => syncNow(), 60e3);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncNow(); });
 
 /* =========================================================
    포스트잇 메모
@@ -1864,6 +2040,130 @@ folderBar.addEventListener('click', e => {
 });
 
 /* =========================================================
+   아침 알림: 하루 처음 켤 때 오늘 챙길 것을 한 화면에 모아 보여 줍니다
+   ========================================================= */
+const BRIEF_KEY = 'schoolboard.briefDate'; // 이 컴퓨터에서 오늘 이미 봤는지 (컴퓨터마다 따로)
+let briefOpen = false;
+
+function briefWeatherHtml() {
+  const c = S.cache.weather;
+  if (!c || ymd(new Date(c.at)) !== ymd(new Date())) return '<p class="brief-empty">날씨를 불러오는 중이에요…</p>';
+  const { w, a } = c;
+  const [desc, emo] = wmo(w.current.weather_code, w.current.is_day);
+  const hi = Math.round(w.daily.temperature_2m_max[0]), lo = Math.round(w.daily.temperature_2m_min[0]);
+  const rain = w.daily.precipitation_probability_max?.[0] ?? 0;
+  const grades = [pmGrade(a?.current?.pm10, 'pm10'), pmGrade(a?.current?.pm2_5, 'pm25')].filter(Boolean);
+  const dust = grades.sort((x, y) => y.i - x.i)[0];
+  const tips = [];
+  if (rain >= 60) tips.push('비 소식이 있어요. 우산을 챙기도록 안내하고 실내 체육을 준비해요.');
+  if (dust && dust.i >= 2) tips.push('미세먼지가 나빠요. 실외 활동은 줄이고 환기는 짧게 해요.');
+  if (hi >= 30) tips.push('더운 날이에요. 물 마시기와 그늘 쉬기를 챙겨요.');
+  if (lo <= -5) tips.push('추운 날이에요. 외투와 실내 온도를 챙겨요.');
+  return `
+    <div class="brief-weather"><span class="weather-emoji">${emo}</span>
+      <div><b>${desc} ${Math.round(w.current.temperature_2m)}°</b><div class="sub">최고 ${hi}° · 최저 ${lo}° · 강수 ${rain}%</div></div>
+      ${dust ? `<span class="badge brief-dust g-${dust.key}">미세먼지 ${dust.label}</span>` : ''}
+    </div>
+    ${tips.length ? `<ul class="brief-tips">${tips.map(t => `<li>${t}</li>`).join('')}</ul>` : '<p class="brief-empty">특별히 챙길 날씨는 없어요.</p>'}`;
+}
+
+function briefHtml() {
+  const now = new Date(), t0 = today0(), ts = ymd(t0), tm = ymd(addDays(t0, 1));
+  const meta = [`${now.getMonth() + 1}월 ${now.getDate()}일 ${WEEK[now.getDay()]}요일`];
+  const sem = semesterInfo(t0);
+  if (sem) meta.push(`${sem.label} ${sem.week}주차`);
+  const { ddayLabel, ddayDate } = S.settings;
+  if (ddayDate) {
+    const n = dayDiff(t0, parseYmd(ddayDate));
+    if (n >= 0) meta.push(`${esc(ddayLabel || '디데이')} ${n ? `D-${n}` : 'D-DAY'}`);
+  }
+
+  const evs = [...(HOLIDAYS[ts] ? [{ title: HOLIDAYS[ts], type: 'holiday' }] : []), ...S.events.filter(e => e.date === ts)]
+    .sort((x, y) => x.title.localeCompare(y.title, 'ko'));
+  const due = sortedTodos().filter(t => t.due && t.due <= tm);
+  const rest = S.todos.length - due.length;
+
+  const dow = now.getDay();
+  const isSchoolDay = dow >= 1 && dow <= 5 && !HOLIDAYS[ts];
+  const classes = isSchoolDay ? S.timetable.grid[dow - 1].map((v, i) => ({ v, i, sp: S.timetable.special[dow - 1][i] })).filter(x => x.v) : [];
+
+  return `
+    <p class="brief-meta">${meta.join(' · ')}</p>
+    <div class="brief-grid">
+      <section class="brief-box">
+        <h3>${icon('calendar')}오늘 일정</h3>
+        ${evs.length ? `<ul class="brief-list">${evs.map(e => `<li><span class="badge ${e.type}">${e.type === 'holiday' ? '공휴일' : EV_TYPES[e.type]}</span>${esc(e.title)}</li>`).join('')}</ul>` : '<p class="brief-empty">오늘 등록된 일정은 없어요.</p>'}
+      </section>
+      <section class="brief-box">
+        <h3>${icon('clock')}마감 챙기기</h3>
+        ${due.length ? `<ul class="brief-list">${due.map(t => { const d = dueInfo(t.due); return `<li><span class="due ${d.cls}">${d.text}</span>${esc(t.text)}</li>`; }).join('')}</ul>` : '<p class="brief-empty">오늘·내일 마감인 일은 없어요.</p>'}
+        ${rest > 0 ? `<p class="sub">그 밖에 할 일 ${rest}개가 더 있어요.</p>` : ''}
+      </section>
+      <section class="brief-box">
+        <h3>${icon('table')}오늘 시간표</h3>
+        ${classes.length ? `<ol class="brief-tt">${classes.map(x => `<li class="${x.sp ? 'sp' : ''}"><small>${x.i + 1}</small>${esc(x.v)}</li>`).join('')}</ol>
+          ${classes.some(x => x.sp) ? '<p class="sub">흐린 과목은 교과 선생님 수업이에요.</p>' : ''}` : `<p class="brief-empty">${isSchoolDay ? '시간표가 비어 있어요.' : '오늘은 수업이 없어요.'}</p>`}
+      </section>
+      <section class="brief-box">
+        <h3>${icon('sun')}날씨·미세먼지</h3>
+        <div id="briefWeather">${briefWeatherHtml()}</div>
+      </section>
+    </div>
+    <div class="modal-actions brief-actions">
+      <label class="check-row"><input type="checkbox" id="briefOff"> 다음부터 자동으로 띄우지 않기</label>
+      <button class="btn-primary" id="briefOk">${icon('check')}확인</button>
+    </div>`;
+}
+
+function openBrief() {
+  const h = new Date().getHours();
+  const who = S.settings.teacher ? `${S.settings.teacher} 선생님` : '선생님';
+  const title = h < 12 ? `좋은 아침이에요, ${who}!` : '오늘 한눈에 보기';
+  const body = openModal(title, briefHtml(), {
+    wide: true,
+    onClose: () => {
+      briefOpen = false;
+      try { localStorage.setItem(BRIEF_KEY, ymd(new Date())); } catch (e) { /* 무시 */ }
+    },
+  });
+  briefOpen = true;
+  $('#briefOk', body).addEventListener('click', closeModal);
+  $('#briefOk', body).focus();
+  $('#briefOff', body).addEventListener('change', e => {
+    S.settings.morningBrief = !e.target.checked;
+    save();
+    toast(e.target.checked ? '아침 알림을 껐어요. 설정이나 위쪽 “오늘 요약” 버튼으로 언제든 볼 수 있어요.' : '아침 알림을 다시 켰어요.');
+  });
+}
+function refreshBriefWeather() {
+  const el = briefOpen && document.getElementById('briefWeather');
+  if (el) el.innerHTML = briefWeatherHtml();
+}
+function maybeAutoBrief() {
+  if (S.settings.morningBrief === false || !modalEl.hidden) return;
+  let seen = '';
+  try { seen = localStorage.getItem(BRIEF_KEY) || ''; } catch (e) { /* 무시 */ }
+  if (seen !== ymd(new Date())) openBrief();
+}
+$('#briefBtn').addEventListener('click', openBrief);
+
+/* =========================================================
+   학생 화면 (전자칠판용 창) — classroom.html
+   ========================================================= */
+let classroomWin = null;
+$('#classroomBtn').addEventListener('click', () => {
+  if (classroomWin && !classroomWin.closed) { classroomWin.focus(); return; }
+  classroomWin = window.open('classroom.html', 'schoolboard-classroom', 'popup=yes,width=1280,height=760');
+  if (!classroomWin) toast('새 창이 막혔어요. 주소창 오른쪽의 팝업 차단 표시를 눌러 허용해 주세요.');
+  else toast('학생 화면을 열었어요. 창을 전자칠판 화면으로 옮긴 뒤 “전체 화면”을 누르세요.');
+});
+// 학생 화면에서 알림장을 고치면 여기서 저장합니다 (그래야 다른 컴퓨터와도 맞춰져요)
+window.setClassNotice = text => {
+  S.classNotice = { text: String(text).slice(0, 2000), at: Date.now() };
+  save();
+};
+
+/* =========================================================
    사이드바 · 시작
    ========================================================= */
 $$('.nav-btn[data-target]').forEach(b => b.addEventListener('click', () => {
@@ -1888,9 +2188,20 @@ function renderAll() {
   renderRoster();
 }
 
+// 테두리를 실제 화면 픽셀 1칸에 딱 맞춥니다.
+// (화면 배율 125%에서 1px는 1.25칸이 되어, 곧은 선과 둥근 모서리의 두께가 달라 보여요)
+function snapBorderWidth() {
+  const dpr = window.devicePixelRatio || 1;
+  document.documentElement.style.setProperty('--bw', `${Math.max(1, Math.floor(1 * dpr)) / dpr}px`);
+  matchMedia(`(resolution: ${dpr}dppx)`).addEventListener('change', snapBorderWidth, { once: true });
+}
+snapBorderWidth();
+
 hydrateIcons();
 renderAll();
 tick();
 setInterval(tick, 1000);
 loadWeather();
 setInterval(() => loadWeather(true), 30 * 60e3);
+// 다른 컴퓨터에서 바뀐 내용을 먼저 받아온 뒤 아침 알림을 띄웁니다 (인터넷이 느리면 5초만 기다림)
+Promise.race([syncNow(), new Promise(r => setTimeout(r, 5000))]).finally(maybeAutoBrief);
