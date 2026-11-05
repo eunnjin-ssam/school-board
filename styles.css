@@ -96,6 +96,11 @@ svg.i {
 .folder-bar.editing .folder-chip[data-id] { border-style: dashed; }
 .folder-chip small { font-size: 11px; font-weight: 600; color: var(--muted); }
 .folder-bar.editing .folder-chip.in-more { opacity: .7; }
+/* 편집 중 끌어서 순서 바꾸기: 놓일 자리를 진한 세로줄로 표시 */
+.folder-bar.editing .folder-chip[data-id] { cursor: grab; }
+.folder-chip.dragging { opacity: .35; }
+.folder-chip.drop-before { box-shadow: -5px 0 0 -1px var(--text); }
+.folder-chip.drop-after { box-shadow: 5px 0 0 -1px var(--text); }
 /* '더보기' 묶음: 누르면 아래로 펼쳐지는 목록 */
 .folder-more { position: relative; }
 .folder-chip .count { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: var(--bg); font-size: 12px; text-align: center; }

@@ -1933,7 +1933,7 @@ const siteNameOf = url => { try { return new URL(url).hostname.replace(/^www\./,
 
 function renderFolders() {
   folderBar.classList.toggle('editing', folderEdit);
-  const chip = f => `<button class="folder-chip${f.inMore ? ' in-more' : ''}" data-id="${f.id}" title="${esc(folderEdit ? '눌러서 고치기' : f.path)}">${icon(folderEdit ? 'edit' : linkIcon(f.path))}<span>${esc(f.name)}</span>${folderEdit && f.inMore ? '<small>더보기</small>' : ''}</button>`;
+  const chip = f => `<button class="folder-chip${f.inMore ? ' in-more' : ''}" data-id="${f.id}"${folderEdit ? ' draggable="true"' : ''} title="${esc(folderEdit ? '눌러서 고치기 · 끌어서 순서 바꾸기' : f.path)}">${icon(folderEdit ? 'edit' : linkIcon(f.path))}<span>${esc(f.name)}</span>${folderEdit && f.inMore ? '<small>더보기</small>' : ''}</button>`;
   // 편집 중에는 모두 보여 주고, 평소에는 '더보기'에 넣은 것만 따로 모아 펼치기 목록에
   const shown = folderEdit ? S.folders : S.folders.filter(f => !f.inMore);
   const more = folderEdit ? [] : S.folders.filter(f => f.inMore);
@@ -2042,6 +2042,7 @@ function openFolderHelp() {
       <li><b>프로그램</b>은 바탕화면의 바로가기(예: 한글, 엑셀)를 오른쪽 클릭 → <b>경로로 복사</b>해서 넣으세요. 처음 누를 때 Windows가 <b>“허락할까요?”</b> 하고 한 번 물어요. <b>예</b>를 누른 프로그램만 다음부터 바로 열려요.</li>
       <li><b>HTML 파일</b>도 추가할 수 있어요. 설치 없이 브라우저 새 탭으로 바로 열리고, 경로는 <code>C:\\Users\\…</code>처럼 전체를 써야 해요.</li>
       <li>바로가기가 많아지면 <b>편집</b>에서 바로가기를 눌러 <b>더보기 안에 넣기</b>를 체크하세요. 자주 안 쓰는 것은 <b>더보기</b>를 눌렀을 때만 보여요.</li>
+      <li>순서를 바꾸려면 <b>편집</b>을 누른 뒤 바로가기를 원하는 자리로 <b>끌어다 놓으세요</b>.</li>
       <li><b>웹 사이트</b>는 주소창의 주소(<code>https://…</code>)를 복사해 넣으세요. 설치 없이 따로 떨어진 새 창으로 열리고, 창을 닫으면 스쿨보드로 돌아와요. (그 창에서 뒤로 가기는 <b>Alt + ←</b>)</li>
     </ol>
     <p class="sub">안전을 위해 프로그램·파일은 이 컴퓨터에서 허락한 것만 열리고, 네트워크 경로(\\\\서버)는 열지 않아요. 연결을 지우려면 <b>폴더열기-제거</b>를 실행하세요.</p>`);
@@ -2059,6 +2060,38 @@ folderBar.addEventListener('click', e => {
   if (folderEdit) openFolderForm(chip.dataset.id);
   else openFolder(S.folders.find(f => f.id === chip.dataset.id));
 });
+
+// 편집 중에는 바로가기를 끌어다 놓아서 순서를 바꿀 수 있어요 (놓는 자리의 왼쪽 절반이면 앞에, 오른쪽 절반이면 뒤에)
+let dragFolderId = null;
+const clearDropMarks = () => $$('.drop-before, .drop-after', folderBar).forEach(el => el.classList.remove('drop-before', 'drop-after'));
+const dropSide = (el, e) => { const r = el.getBoundingClientRect(); return e.clientX < r.left + r.width / 2 ? 'before' : 'after'; };
+folderBar.addEventListener('dragstart', e => {
+  const c = e.target.closest('.folder-chip[data-id]');
+  if (!folderEdit || !c) return;
+  dragFolderId = c.dataset.id;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', dragFolderId);
+  c.classList.add('dragging');
+});
+folderBar.addEventListener('dragover', e => {
+  const c = e.target.closest('.folder-chip[data-id]');
+  if (!dragFolderId || !c || c.dataset.id === dragFolderId) return;
+  e.preventDefault();
+  clearDropMarks();
+  c.classList.add('drop-' + dropSide(c, e));
+});
+folderBar.addEventListener('drop', e => {
+  const c = e.target.closest('.folder-chip[data-id]');
+  if (!dragFolderId || !c || c.dataset.id === dragFolderId) return;
+  e.preventDefault();
+  const moving = S.folders.find(f => f.id === dragFolderId);
+  const rest = S.folders.filter(f => f.id !== dragFolderId);
+  const at = rest.findIndex(f => f.id === c.dataset.id) + (dropSide(c, e) === 'after' ? 1 : 0);
+  rest.splice(at, 0, moving);
+  S.folders = rest;
+  save(); renderFolders();
+});
+folderBar.addEventListener('dragend', () => { dragFolderId = null; clearDropMarks(); $$('.dragging', folderBar).forEach(el => el.classList.remove('dragging')); });
 
 // '더보기' 펼치기 목록 열고 닫기 (바깥을 누르거나 Esc를 누르면 닫힘)
 function toggleFolderMore(open) {
