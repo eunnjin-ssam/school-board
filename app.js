@@ -1951,7 +1951,7 @@ function renderFolders() {
 function openHtml(f) {
   if (location.protocol !== 'file:') { toast('HTML 바로가기는 스쿨보드를 index.html 파일로 열었을 때만 돼요.'); return; }
   const [drive, ...rest] = f.path.split('\\');
-  window.open(`file:///${drive}/${rest.map(encodeURIComponent).join('/')}`, '_blank');
+  openSite(`file:///${drive}/${rest.map(encodeURIComponent).join('/')}`);   // 사이트처럼 따로 떨어진 새 창으로
 }
 
 // 웹 사이트는 따로 떨어진 새 창으로: 스쿨보드가 전체화면이어도 그대로 두고, 창을 닫으면 바로 돌아와요.
@@ -2040,7 +2040,7 @@ function openFolderHelp() {
       <li>경로는 탐색기에서 폴더를 오른쪽 클릭 → <b>경로로 복사</b>로 가져올 수 있어요.</li>
       <li>집과 학교의 사용자 이름이 다르면 <code>%USERPROFILE%\\Desktop\\수업자료</code>처럼 쓰면 두 컴퓨터에서 모두 열려요.</li>
       <li><b>프로그램</b>은 바탕화면의 바로가기(예: 한글, 엑셀)를 오른쪽 클릭 → <b>경로로 복사</b>해서 넣으세요. 처음 누를 때 Windows가 <b>“허락할까요?”</b> 하고 한 번 물어요. <b>예</b>를 누른 프로그램만 다음부터 바로 열려요.</li>
-      <li><b>HTML 파일</b>도 추가할 수 있어요. 설치 없이 브라우저 새 탭으로 바로 열리고, 경로는 <code>C:\\Users\\…</code>처럼 전체를 써야 해요.</li>
+      <li><b>HTML 파일</b>도 추가할 수 있어요. 설치 없이 따로 떨어진 새 창으로 바로 열리고, 경로는 <code>C:\\Users\\…</code>처럼 전체를 써야 해요.</li>
       <li>바로가기가 많아지면 <b>편집</b>에서 바로가기를 눌러 <b>더보기 안에 넣기</b>를 체크하세요. 자주 안 쓰는 것은 <b>더보기</b>를 눌렀을 때만 보여요.</li>
       <li>순서를 바꾸려면 <b>편집</b>을 누른 뒤 바로가기를 원하는 자리로 <b>끌어다 놓으세요</b>.</li>
       <li><b>웹 사이트</b>는 주소창의 주소(<code>https://…</code>)를 복사해 넣으세요. 설치 없이 따로 떨어진 새 창으로 열리고, 창을 닫으면 스쿨보드로 돌아와요. (그 창에서 뒤로 가기는 <b>Alt + ←</b>)</li>
