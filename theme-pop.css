@@ -67,6 +67,9 @@ body { flex-direction: column; background: transparent; }
 .folder-chip:hover { background: var(--lime); border-color: var(--ink); }
 .folder-chip.add { border-color: #b9b9b3; }
 .folder-chip.add:hover { border-color: var(--ink); color: var(--ink); background: var(--lime-soft); }
+.folder-chip.more[aria-expanded="true"] { background: var(--lime); }
+.folder-chip .count { background: var(--ink); color: #fff; }
+.folder-more-panel { border: var(--bw) solid var(--ink); }
 
 /* ---------- 카드 ---------- */
 .card { border: var(--bw) solid var(--ink); border-radius: var(--radius); box-shadow: none; }

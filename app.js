@@ -1933,8 +1933,15 @@ const siteNameOf = url => { try { return new URL(url).hostname.replace(/^www\./,
 
 function renderFolders() {
   folderBar.classList.toggle('editing', folderEdit);
-  const chips = S.folders.map(f => `<button class="folder-chip" data-id="${f.id}" title="${esc(folderEdit ? '눌러서 고치기' : f.path)}">${icon(folderEdit ? 'edit' : linkIcon(f.path))}<span>${esc(f.name)}</span></button>`).join('');
-  folderBar.innerHTML = chips + (folderEdit
+  const chip = f => `<button class="folder-chip${f.inMore ? ' in-more' : ''}" data-id="${f.id}" title="${esc(folderEdit ? '눌러서 고치기' : f.path)}">${icon(folderEdit ? 'edit' : linkIcon(f.path))}<span>${esc(f.name)}</span>${folderEdit && f.inMore ? '<small>더보기</small>' : ''}</button>`;
+  // 편집 중에는 모두 보여 주고, 평소에는 '더보기'에 넣은 것만 따로 모아 펼치기 목록에
+  const shown = folderEdit ? S.folders : S.folders.filter(f => !f.inMore);
+  const more = folderEdit ? [] : S.folders.filter(f => f.inMore);
+  const moreBtn = more.length
+    ? `<div class="folder-more"><button class="folder-chip more" data-act="more" aria-expanded="false">${icon('grid')}<span>더보기</span><b class="count">${more.length}</b></button>
+         <div class="folder-more-panel" hidden>${more.map(chip).join('')}</div></div>`
+    : '';
+  folderBar.innerHTML = shown.map(chip).join('') + moreBtn + (folderEdit
     ? `<button class="folder-chip add" data-act="add">${icon('plus')}<span>추가</span></button><button class="link-btn small" data-act="done">완료</button>`
     : S.folders.length
       ? `<button class="link-btn small" data-act="edit" title="바로가기 추가·수정·삭제">${icon('edit')}편집</button>`
@@ -1994,6 +2001,7 @@ function openFolderForm(id) {
     <label class="field"><span>이름 <small>비워 두면 폴더·프로그램 이름이나 사이트 주소를 써요</small></span>
       <input class="box" id="fdName" value="${esc(f?.name || '')}" maxlength="20" placeholder="예: 수업자료">
     </label>
+    <label class="check-row"><input type="checkbox" id="fdMore" ${f?.inMore ? 'checked' : ''}> <b>더보기</b> 안에 넣기 <small class="muted">(위에 바로 보이지 않고, 더보기를 누르면 보여요)</small></label>
     <div class="modal-actions">
       ${f ? `<button class="link-btn danger" data-act="del" style="margin-right:auto">${icon('trash')}삭제</button>` : ''}
       <button class="link-btn small" data-act="help">${icon('help')}안 열려요</button>
@@ -2006,8 +2014,9 @@ function openFolderForm(id) {
     if (!url && !/^([A-Za-z]:\\|%[^%]+%)/.test(path)) { toast('C:\\ 처럼 드라이브 문자로 시작하는 경로나 https:// 로 시작하는 웹 주소를 넣어 주세요.'); pathEl.focus(); return; }
     if (!url && isHtml(path) && !/^[A-Za-z]:\\/.test(path)) { toast('HTML 파일은 C:\\Users\\… 처럼 전체 경로로 넣어 주세요.'); pathEl.focus(); return; }
     const name = nameEl.value.trim() || (url ? siteNameOf(url) : folderNameOf(path));
-    if (f) Object.assign(f, { path, name });
-    else S.folders.push({ id: uid(), path, name });
+    const inMore = $('#fdMore', body).checked;
+    if (f) Object.assign(f, { path, name, inMore });
+    else S.folders.push({ id: uid(), path, name, inMore });
     save(); renderFolders(); closeModal();
   };
   [pathEl, nameEl].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); }));
@@ -2032,6 +2041,7 @@ function openFolderHelp() {
       <li>집과 학교의 사용자 이름이 다르면 <code>%USERPROFILE%\\Desktop\\수업자료</code>처럼 쓰면 두 컴퓨터에서 모두 열려요.</li>
       <li><b>프로그램</b>은 바탕화면의 바로가기(예: 한글, 엑셀)를 오른쪽 클릭 → <b>경로로 복사</b>해서 넣으세요. 처음 누를 때 Windows가 <b>“허락할까요?”</b> 하고 한 번 물어요. <b>예</b>를 누른 프로그램만 다음부터 바로 열려요.</li>
       <li><b>HTML 파일</b>도 추가할 수 있어요. 설치 없이 브라우저 새 탭으로 바로 열리고, 경로는 <code>C:\\Users\\…</code>처럼 전체를 써야 해요.</li>
+      <li>바로가기가 많아지면 <b>편집</b>에서 바로가기를 눌러 <b>더보기 안에 넣기</b>를 체크하세요. 자주 안 쓰는 것은 <b>더보기</b>를 눌렀을 때만 보여요.</li>
       <li><b>웹 사이트</b>는 주소창의 주소(<code>https://…</code>)를 복사해 넣으세요. 설치 없이 따로 떨어진 새 창으로 열리고, 창을 닫으면 스쿨보드로 돌아와요. (그 창에서 뒤로 가기는 <b>Alt + ←</b>)</li>
     </ol>
     <p class="sub">안전을 위해 프로그램·파일은 이 컴퓨터에서 허락한 것만 열리고, 네트워크 경로(\\\\서버)는 열지 않아요. 연결을 지우려면 <b>폴더열기-제거</b>를 실행하세요.</p>`);
@@ -2042,11 +2052,24 @@ folderBar.addEventListener('click', e => {
   if (act === 'add') { openFolderForm(); return; }
   if (act === 'help') { openFolderHelp(); return; }
   if (act === 'edit' || act === 'done') { folderEdit = act === 'edit'; renderFolders(); return; }
+  if (act === 'more') { toggleFolderMore(); return; }
   const chip = e.target.closest('.folder-chip[data-id]');
   if (!chip) return;
+  toggleFolderMore(false);
   if (folderEdit) openFolderForm(chip.dataset.id);
   else openFolder(S.folders.find(f => f.id === chip.dataset.id));
 });
+
+// '더보기' 펼치기 목록 열고 닫기 (바깥을 누르거나 Esc를 누르면 닫힘)
+function toggleFolderMore(open) {
+  const panel = $('.folder-more-panel', folderBar), btn = $('[data-act="more"]', folderBar);
+  if (!panel) return;
+  const show = open ?? panel.hidden;
+  panel.hidden = !show;
+  btn.setAttribute('aria-expanded', show);
+}
+document.addEventListener('click', e => { if (!e.target.closest('.folder-more')) toggleFolderMore(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') toggleFolderMore(false); });
 
 /* =========================================================
    아침 알림: 하루 처음 켤 때 오늘 챙길 것을 한 화면에 모아 보여 줍니다
