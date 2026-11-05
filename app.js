@@ -53,6 +53,7 @@ const ICONS = {
   sticky: '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5V14l-6 6H5.5A1.5 1.5 0 0 1 4 18.5z"/><path d="M14 20v-4.5a1.5 1.5 0 0 1 1.5-1.5H20M8 9h8M8 12.5h4"/>',
   pin: '<path d="M9 3.5h6l-1 5.5 3.5 3.5h-11L10 9z"/><path d="M12 12.5V21"/>',
   arrowRight: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
   folder: '<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.8M12 17.2v.1"/>',
   file: '<path d="M6 3h8l5 5v11.5A1.5 1.5 0 0 1 17.5 21h-11A1.5 1.5 0 0 1 5 19.5v-15A1.5 1.5 0 0 1 6.5 3z"/><path d="M14 3v5h5M9 13l-1.5 2L9 17M15 13l1.5 2-1.5 2"/>',
@@ -1737,7 +1738,22 @@ const cleanPath = p => p.trim().replace(/^["']+|["']+$/g, '').replace(/\//g, '\\
 const folderNameOf = p => cleanPath(p).replace(/\\+$/, '').split('\\').pop().replace(/\.(html?|lnk|exe|url)$/i, '') || p;
 const isHtml = p => /\.html?$/i.test(p);
 const isProgram = p => /\.(exe|lnk|url|appref-ms)$/i.test(p);
-const linkIcon = p => (isHtml(p) ? 'file' : isProgram(p) ? 'app' : 'folder');
+const isWebUrl = p => /^https?:\/\//i.test(p);
+const linkIcon = p => (isWebUrl(p) ? 'globe' : isHtml(p) ? 'file' : isProgram(p) ? 'app' : 'folder');
+// 웹 주소로 보이면 https://… 모양으로 고쳐서 돌려줌 (예: naver.com → https://naver.com/). 아니면 null
+function toWebUrl(raw) {
+  const s = raw.trim().replace(/^["']+|["']+$/g, '');
+  if (/^[A-Za-z]:[\\/]|^%|^\\\\/.test(s)) return null;   // C:\…, %USERPROFILE%…, \\서버 는 컴퓨터 안 경로
+  if (!/^https?:\/\//i.test(s)) {
+    if (!/^(www\.)?[\w-]+(\.[\w-]+)+([/:?#]|$)/i.test(s)) return null;
+    if (/\.(html?|exe|lnk|url|txt|pdf|hwpx?|docx?|xlsx?|pptx?)$/i.test(s)) return null;   // english_test.html 같은 파일 이름
+  }
+  try {
+    const u = new URL(/^https?:\/\//i.test(s) ? s : 'https://' + s);
+    return /^https?:$/.test(u.protocol) ? u.href : null;
+  } catch (e) { return null; }
+}
+const siteNameOf = url => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return url; } };
 
 function renderFolders() {
   folderBar.classList.toggle('editing', folderEdit);
@@ -1746,7 +1762,7 @@ function renderFolders() {
     ? `<button class="folder-chip add" data-act="add">${icon('plus')}<span>추가</span></button><button class="link-btn small" data-act="done">완료</button>`
     : S.folders.length
       ? `<button class="link-btn small" data-act="edit" title="바로가기 추가·수정·삭제">${icon('edit')}편집</button>`
-      : `<button class="folder-chip add" data-act="add">${icon('plus')}<span>자주 쓰는 폴더·프로그램 추가</span></button><button class="link-btn small" data-act="help">${icon('help')}사용법</button>`);
+      : `<button class="folder-chip add" data-act="add">${icon('plus')}<span>자주 쓰는 폴더·프로그램·사이트 추가</span></button><button class="link-btn small" data-act="help">${icon('help')}사용법</button>`);
 }
 
 function openHtml(f) {
@@ -1756,6 +1772,7 @@ function openHtml(f) {
 }
 
 function openFolder(f) {
+  if (isWebUrl(f.path)) { window.open(f.path, '_blank', 'noopener'); return; }   // 웹 사이트는 새 탭으로
   if (isHtml(f.path)) { openHtml(f); return; }
   // 경로를 base64(영문·숫자)로 감싸 보냄: 도우미가 이 모양의 주소만 받아서, 이상한 글자가 끼어들 틈이 없어요
   const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(f.path))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -1786,10 +1803,10 @@ function openViaProtocol(b64) {
 function openFolderForm(id) {
   const f = S.folders.find(x => x.id === id);
   const body = openModal(f ? '바로가기 고치기' : '바로가기 추가', `
-    <label class="field"><span>폴더 · 프로그램 · HTML 파일 경로 <small>폴더나 바탕화면 바로가기를 오른쪽 클릭 → <b>경로로 복사</b> 후 붙여넣기</small></span>
-      <input class="box" id="fdPath" value="${esc(f?.path || '')}" placeholder="C:\\Users\\…\\Desktop\\수업자료" autofocus>
+    <label class="field"><span>폴더 · 프로그램 · HTML 파일 경로 또는 웹 주소 <small>폴더나 바탕화면 바로가기는 오른쪽 클릭 → <b>경로로 복사</b>, 사이트는 주소창의 주소를 복사해 붙여넣기</small></span>
+      <input class="box" id="fdPath" value="${esc(f?.path || '')}" placeholder="C:\\Users\\…\\Desktop\\수업자료  또는  https://…" autofocus>
     </label>
-    <label class="field"><span>이름 <small>비워 두면 폴더·프로그램 이름을 써요</small></span>
+    <label class="field"><span>이름 <small>비워 두면 폴더·프로그램 이름이나 사이트 주소를 써요</small></span>
       <input class="box" id="fdName" value="${esc(f?.name || '')}" maxlength="20" placeholder="예: 수업자료">
     </label>
     <div class="modal-actions">
@@ -1799,10 +1816,11 @@ function openFolderForm(id) {
     </div>`);
   const pathEl = $('#fdPath', body), nameEl = $('#fdName', body);
   const submit = () => {
-    const path = cleanPath(pathEl.value);
-    if (!/^([A-Za-z]:\\|%[^%]+%)/.test(path)) { toast('C:\\ 처럼 드라이브 문자로 시작하는 경로를 넣어 주세요.'); pathEl.focus(); return; }
-    if (isHtml(path) && !/^[A-Za-z]:\\/.test(path)) { toast('HTML 파일은 C:\\Users\\… 처럼 전체 경로로 넣어 주세요.'); pathEl.focus(); return; }
-    const name = nameEl.value.trim() || folderNameOf(path);
+    const url = toWebUrl(pathEl.value);
+    const path = url || cleanPath(pathEl.value);
+    if (!url && !/^([A-Za-z]:\\|%[^%]+%)/.test(path)) { toast('C:\\ 처럼 드라이브 문자로 시작하는 경로나 https:// 로 시작하는 웹 주소를 넣어 주세요.'); pathEl.focus(); return; }
+    if (!url && isHtml(path) && !/^[A-Za-z]:\\/.test(path)) { toast('HTML 파일은 C:\\Users\\… 처럼 전체 경로로 넣어 주세요.'); pathEl.focus(); return; }
+    const name = nameEl.value.trim() || (url ? siteNameOf(url) : folderNameOf(path));
     if (f) Object.assign(f, { path, name });
     else S.folders.push({ id: uid(), path, name });
     save(); renderFolders(); closeModal();
@@ -1829,6 +1847,7 @@ function openFolderHelp() {
       <li>집과 학교의 사용자 이름이 다르면 <code>%USERPROFILE%\\Desktop\\수업자료</code>처럼 쓰면 두 컴퓨터에서 모두 열려요.</li>
       <li><b>프로그램</b>은 바탕화면의 바로가기(예: 한글, 엑셀)를 오른쪽 클릭 → <b>경로로 복사</b>해서 넣으세요. 처음 누를 때 Windows가 <b>“허락할까요?”</b> 하고 한 번 물어요. <b>예</b>를 누른 프로그램만 다음부터 바로 열려요.</li>
       <li><b>HTML 파일</b>도 추가할 수 있어요. 설치 없이 브라우저 새 탭으로 바로 열리고, 경로는 <code>C:\\Users\\…</code>처럼 전체를 써야 해요.</li>
+      <li><b>웹 사이트</b>는 주소창의 주소(<code>https://…</code>)를 복사해 넣으세요. 설치 없이 새 탭으로 열려요.</li>
     </ol>
     <p class="sub">안전을 위해 프로그램·파일은 이 컴퓨터에서 허락한 것만 열리고, 네트워크 경로(\\\\서버)는 열지 않아요. 연결을 지우려면 <b>폴더열기-제거</b>를 실행하세요.</p>`);
 }
