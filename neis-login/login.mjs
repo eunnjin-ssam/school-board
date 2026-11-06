@@ -235,10 +235,10 @@ function scrub(text, pw) {
   return pw ? String(text).split(pw).join('●●●') : String(text);
 }
 
-async function waitForHuman(page, ctx, blocked) {
+async function waitForHuman(page, ctx, blocked, hint = '열린 크롬 창에서 직접 로그인해 주세요.') {
   say('\n⏸  ' + blocked.message);
-  say('⏸  열린 크롬 창에서 직접 로그인해 주세요.');
-  popup(blocked.message + '\n\n열린 크롬 창에서 직접 로그인해 주세요.');
+  say('⏸  ' + hint);
+  popup(blocked.message + '\n\n' + hint);
   await new Promise((r) => ctx.on('close', r));
 }
 
@@ -252,7 +252,9 @@ async function closeNotices(page) {
   } catch { /* 무시 */ }
 }
 
-async function main() {
+// 나이스에 로그인까지 해 두고 { ctx, page } 를 돌려줘요. 복무 같은 다음 일을 하는 프로그램이 이걸 불러 써요.
+// 막히면 Blocked 를 던지는데, 크롬이 떠 있으면 e.ctx / e.page 에 실어 보내요 (선생님이 이어서 직접 하게).
+export async function loginNeis() {
   const cfg = loadConfig();
   const pw = readPassword();
   const url = cfg.neisUrl || 'https://sen.neis.go.kr/jsp/main.jsp';
@@ -284,25 +286,48 @@ async function main() {
       say('✅  이미 로그인돼 있어요.');
     } else if (!pw) {
       await prepareForHuman(page, (cfg.certName || '').trim());
+      // 선생님이 암호를 넣을 때까지 최대 10분 기다려요
+      for (let i = 0; !(await isLoggedIn(page)); i++) {
+        if (i > 1200) throw new Blocked('10분 동안 로그인이 안 돼서 멈췄어요.');
+        await page.waitForTimeout(500);
+      }
+      say('✅  나이스 로그인 완료!');
+      await closeNotices(page);
     } else {
       await enterPassword(page, (cfg.certName || '').trim(), pw, alerts);
       say('✅  나이스 로그인 완료!');
       await closeNotices(page);
     }
+    return { ctx, page };
+  } catch (e) {
+    const blocked = e instanceof Blocked ? e
+      : new Blocked('자동 로그인 중 예상하지 못한 일로 멈췄어요: ' + scrub(String(e?.message || e).split('\n')[0], pw).slice(0, 120));
+    blocked.ctx = ctx; blocked.page = page;
+    throw blocked;
+  }
+}
+
+async function main() {
+  try {
+    const { ctx } = await loginNeis();
     // 이 프로그램이 끝나면 크롬도 같이 닫히므로, 선생님이 크롬을 닫을 때까지 조용히 기다려요
     say('   크롬을 닫으면 이 프로그램도 같이 꺼져요.');
     await new Promise((r) => ctx.on('close', r));
   } catch (e) {
-    const blocked = e instanceof Blocked ? e
-      : new Blocked('자동 로그인 중 예상하지 못한 일로 멈췄어요: ' + scrub(String(e?.message || e).split('\n')[0], pw).slice(0, 120));
-    await waitForHuman(page, ctx, blocked);
+    if (e instanceof Blocked && e.ctx) await waitForHuman(e.page, e.ctx, e);
+    else throw e;
   }
 }
 
-main().catch(async (e) => {
+export async function reportFatal(e) {
   const msg = e instanceof Blocked ? e.message : '알 수 없는 오류로 멈췄어요.';
   console.log('\n❌  ' + msg);
   await popup(msg, 'Error');
   if (process.env.SB_NEIS_DEBUG && !(e instanceof Blocked)) console.log(e);   // 개발용 (암호가 섞일 수 있어 평소엔 안 찍음)
   process.exitCode = 1;
-});
+}
+
+export { Blocked, popup, say, waitForHuman, PWD_FIELD };
+
+// 이 파일을 직접 실행했을 때만 로그인하고 기다려요 (다른 프로그램이 불러 쓸 때는 실행 안 함)
+if (import.meta.main) main().catch(reportFatal);
