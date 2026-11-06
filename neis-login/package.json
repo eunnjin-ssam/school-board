@@ -1,9 +1,0 @@
-{
-  "name": "schoolboard-neis-login",
-  "private": true,
-  "description": "스쿨보드 - 나이스 인증서 자동로그인 (이 컴퓨터 전용)",
-  "type": "module",
-  "dependencies": {
-    "playwright-core": "1.64.1"
-  }
-}

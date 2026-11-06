@@ -7,5 +7,5 @@
 folder-opener/helper-token.js
 # Claude 로컬 설정
 .claude/
-# 나이스 자동로그인에 필요한 프로그램 (설정할 때 컴퓨터마다 받음)
-neis-login/node_modules/
+# 나이스·원격업무지원 자동로그인은 비공개 저장소(school-board-neis)에서 따로 관리
+neis-login/
