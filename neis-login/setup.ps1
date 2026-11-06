@@ -2,20 +2,22 @@
   나이스 자동로그인 설정 (이 컴퓨터, 이 Windows 계정 전용)
   - 필요한 프로그램(playwright-core)을 이 폴더에 깔고
   - 인증서 이름과 암호를 저장해요.
-  암호는 Windows 계정으로 잠가서 %LOCALAPPDATA%\SchoolBoard\neis\cert.dat 에만 저장해요.
-  (스쿨보드 폴더·GitHub 에는 저장되지 않아요. 이 컴퓨터의 이 계정에서만 풀려요.)
+  암호는 파일로 저장하지 않고 Windows 자격 증명 관리자(이 Windows 계정)에 «SchoolBoard/NEIS-cert» 로 넣어요.
+  (스쿨보드 폴더·GitHub 에는 저장되지 않아요. 이 컴퓨터의 이 계정에서만 꺼낼 수 있어요.)
 
   지우기: setup.ps1 -Remove   (저장한 암호·설정·나이스 전용 크롬 기록을 모두 지움)
 #>
 param([switch]$Remove)
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'cred.ps1')
 $dir = Join-Path $env:LOCALAPPDATA 'SchoolBoard\neis'
 $config = Join-Path $dir 'config.json'
-$secret = Join-Path $dir 'cert.dat'
+$oldSecret = Join-Path $dir 'cert.dat'   # 예전 방식(파일) — 있으면 지워요
 $launcher = Join-Path $PSScriptRoot '나이스-로그인.cmd'
 
 if ($Remove) {
+  [SbCred]::Delete($SbCredTarget)
   if (Test-Path $dir) { Remove-Item $dir -Recurse -Force }
   Write-Host '저장한 암호·설정·나이스 전용 크롬 기록을 모두 지웠어요.'
   exit 0
@@ -68,14 +70,14 @@ $u = Read-Host '바꾸려면 새 주소를, 그대로면 그냥 Enter'
 if ($u.Trim()) { $cfg.neisUrl = $u.Trim() }
 
 Write-Host ''
-Write-Host '인증서 이름: 나이스 [인증서 로그인] 창의 목록에 보이는 «사용자» 이름을 그대로 적어 주세요.'
-Write-Host '             (인증서가 하나뿐이면 비워 둬도 돼요)'
+Write-Host '인증서 이름: 나이스 [인증서 로그인] 창의 목록에 보이는 «사용자» 이름을 적어 주세요.'
+Write-Host '             이름 일부만 적어도 돼요 (예: 김은진). 인증서가 하나뿐이면 비워 둬도 돼요.'
 $shown = if ($cfg.certName) { $cfg.certName } else { '(비어 있음)' }
 $n = Read-Host "인증서 이름 [지금: $shown] (그대로면 Enter)"
 if ($n.Trim()) { $cfg.certName = $n.Trim() }
 
 Write-Host ''
-$hasPw = Test-Path $secret
+$hasPw = [SbCred]::Exists($SbCredTarget)
 $askPw = $true
 if ($hasPw) {
   $a = Read-Host '저장된 암호가 있어요. 새로 바꿀까요? [y/N]'
@@ -95,13 +97,14 @@ if ($askPw) {
     }
     if ($empty) { Write-Host '비어 있어요. 다시 입력해 주세요.' -ForegroundColor Yellow; continue }
     if (-not $same) { Write-Host '두 번 입력한 암호가 달라요. 다시 입력해 주세요.' -ForegroundColor Yellow; continue }
-    # Windows 계정으로 잠가서 저장 (이 컴퓨터의 이 계정에서만 풀림)
-    Set-Content -LiteralPath $secret -Value ($p1 | ConvertFrom-SecureString) -Encoding ASCII -NoNewline
-    Write-Host '암호를 저장했어요.' -ForegroundColor Green
+    # Windows 자격 증명 관리자에 저장 (이 컴퓨터의 이 계정에서만 꺼낼 수 있음)
+    [SbCred]::Write($SbCredTarget, 'neis-cert', $p1)
+    Write-Host '암호를 Windows 자격 증명 관리자에 저장했어요.' -ForegroundColor Green
     break
   }
-  if (-not (Test-Path $secret)) { Write-Host '암호를 저장하지 못했어요. 다시 실행해 주세요.' -ForegroundColor Yellow; exit 1 }
+  if (-not [SbCred]::Exists($SbCredTarget)) { Write-Host '암호를 저장하지 못했어요. 다시 실행해 주세요.' -ForegroundColor Yellow; exit 1 }
 }
+if (Test-Path $oldSecret) { Remove-Item $oldSecret -Force }
 
 ($cfg | ConvertTo-Json) | Set-Content -LiteralPath $config -Encoding UTF8
 

@@ -4,19 +4,19 @@
 //
 // 지키는 것
 //  - 인증서 암호는 이 프로그램이 직접 꺼내 «암호칸에만» 넣어요. 화면·기록·오류 메시지에 절대 찍지 않아요.
-//  - 암호는 설정할 때 Windows 사용자 계정으로 잠가서(DPAPI) 이 컴퓨터의 이 계정에서만 풀려요.
+//  - 암호는 파일이 아니라 Windows 자격 증명 관리자(이 Windows 계정)에 들어 있어요.
 //    스쿨보드 폴더나 GitHub에는 암호도, 인증서 이름도 들어가지 않아요.
 //  - 암호를 넣은 뒤 로그인이 안 되면 «다시 시도하지 않아요» (암호 오류 횟수 초과로 잠기지 않게).
 //  - 막히면 창을 닫지 않고 선생님이 직접 로그인하게 그대로 둬요.
 //  - 나이스 전용 크롬(따로 만든 프로필)을 띄워요. 평소 쓰는 크롬과 섞이지 않아요.
 import { chromium } from 'playwright-core';
-import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawn } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const DIR = join(process.env.LOCALAPPDATA, 'SchoolBoard', 'neis');
 const CONFIG = join(DIR, 'config.json');
-const SECRET = join(DIR, 'cert.dat');
+const CRED_PS1 = join(import.meta.dirname, 'cred.ps1');   // Windows 자격 증명 관리자 도우미
 const PROFILE = join(DIR, 'chrome-profile');
 
 const LOGGED_IN = 'text=로그아웃';
@@ -39,36 +39,69 @@ class Blocked extends Error {}
 
 const say = (m) => console.log(m);
 
+// 창 없이 돌 때도 알 수 있게 Windows 알림 창을 띄워요. 돌려주는 약속은 알림 창을 닫으면 끝나요.
+// (detached 로 띄우면 이 프로그램이 끝날 때 알림 창도 사라져서, 끝내기 전에 닫힐 때까지 기다려요)
+function popup(message, icon = 'Warning') {
+  const ps = `Add-Type -AssemblyName System.Windows.Forms;
+    [System.Windows.Forms.MessageBox]::Show($env:SB_MSG, '나이스 자동로그인', 'OK', '${icon}', 'Button1', 'DefaultDesktopOnly') | Out-Null`;
+  return new Promise((resolve) => {
+    try {
+      const c = spawn('powershell.exe', ['-NoProfile', '-WindowStyle', 'Hidden', '-Command', ps], {
+        env: { ...process.env, SB_MSG: message }, stdio: 'ignore', windowsHide: true,
+      });
+      c.on('exit', resolve);
+      c.on('error', resolve);
+    } catch { resolve(); }   // 알림을 못 띄워도 로그인 흐름은 그대로
+  });
+}
+
+// 설정을 안 했어도 돌아가요: 그때는 버튼만 눌러 주고 암호는 선생님이 직접 넣어요.
 function loadConfig() {
-  if (!existsSync(CONFIG) || !existsSync(SECRET)) {
-    throw new Blocked('아직 설정을 안 했어요. 같은 폴더의 «나이스-설정.cmd» 를 먼저 실행해 주세요.');
-  }
+  if (!existsSync(CONFIG)) return {};
   // PowerShell 이 저장한 파일은 맨 앞에 BOM 이 붙어 있어서 떼고 읽어요
   return JSON.parse(readFileSync(CONFIG, 'utf8').replace(/^﻿/, ''));
 }
 
 function saveConfig(cfg) {
+  mkdirSync(DIR, { recursive: true });
   writeFileSync(CONFIG, JSON.stringify(cfg, null, 2), 'utf8');
 }
 
-// Windows 계정으로 잠가 둔 암호를 풀어요. (결과는 이 프로그램 안에서만 쓰고 어디에도 찍지 않음)
+// Windows 자격 증명 관리자에서 암호를 꺼내요. 저장 안 했으면 '' (그때는 선생님이 직접 입력).
+// (결과는 이 프로그램 안에서만 쓰고 어디에도 찍지 않음)
 function readPassword() {
   const ps = `$ErrorActionPreference='Stop'; [Console]::OutputEncoding=[Text.Encoding]::UTF8;
-    $s = (Get-Content -LiteralPath $env:SB_NEIS_SECRET -Raw).Trim() | ConvertTo-SecureString;
-    $p = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($s);
-    try { [Console]::Out.Write([Runtime.InteropServices.Marshal]::PtrToStringBSTR($p)) }
-    finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($p) }`;
+    . $env:SB_NEIS_CRED;
+    $pw = [SbCred]::Read($SbCredTarget);
+    if ($null -eq $pw) { exit 3 }
+    [Console]::Out.Write($pw)`;
   try {
-    const pw = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], {
-      env: { ...process.env, SB_NEIS_SECRET: SECRET }, encoding: 'utf8', windowsHide: true,
+    return execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', ps], {
+      env: { ...process.env, SB_NEIS_CRED: CRED_PS1 }, encoding: 'utf8', windowsHide: true,
       stdio: ['ignore', 'pipe', 'ignore'],
     });
-    if (!pw) throw new Error();
-    return pw;
-  } catch {
-    throw new Blocked('저장된 암호를 열지 못했어요. «나이스-설정.cmd» 로 암호를 다시 저장해 주세요.\n' +
-      '   (다른 컴퓨터·다른 Windows 계정에서 저장한 암호는 열리지 않아요)');
+  } catch (e) {
+    if (e?.status === 3) return '';
+    throw new Blocked('Windows 자격 증명 관리자에서 암호를 꺼내지 못했어요. «나이스-설정.cmd» 로 암호를 다시 저장해 주세요.');
   }
+}
+
+// 인증서 목록에서 이름(일부만 적어도 됨)이 들어간 인증서 한 개를 찾아요.
+// 'many' = 같은 이름이 들어간 인증서가 여러 개라 고르지 않음, null = 아직 못 찾음
+async function findCert(page, certName) {
+  for (let i = 0; i < 20; i++) {
+    if (certName) {
+      const loc = page.locator(`div[title*=${JSON.stringify(certName)}]:visible`);
+      const titles = new Set((await loc.evaluateAll((els) => els.map((e) => e.getAttribute('title').trim()))));
+      if (titles.size === 1) return loc.first();
+      if (titles.size > 1) return 'many';
+    } else {
+      const t = await onlyCertRow(page);
+      if (t) return t;
+    }
+    await page.waitForTimeout(500);
+  }
+  return null;
 }
 
 async function isLoggedIn(page) {
@@ -87,7 +120,8 @@ async function launch(loose) {
     return ctx;
   } catch (e) {
     const first = String(e?.message || e).split('\n')[0].slice(0, 150);
-    if (/ProcessSingleton|already in use|user data directory/i.test(first)) {
+    // 나이스 전용 크롬이 이미 떠 있으면 새 크롬이 그 창에 넘기고 바로 꺼져서 «has been closed» 로 나와요
+    if (/ProcessSingleton|already in use|user data directory|has been closed/i.test(first)) {
       throw new Blocked('나이스 전용 크롬 창이 이미 열려 있어요. 그 창을 쓰시거나, 닫고 다시 눌러 주세요.');
     }
     throw new Blocked('크롬을 띄우지 못했어요: ' + first + '\n   구글 크롬이 설치돼 있는지 확인해 주세요.');
@@ -120,23 +154,31 @@ async function openCertDialog(page, url) {
   }
 }
 
+// 암호를 저장하지 않았을 때: 인증서까지 골라 두고 암호칸에 커서를 놓아 둬요. 암호는 선생님이 쳐요.
+async function prepareForHuman(page, certName) {
+  let target = await findCert(page, certName);
+  if (target === 'many') target = null;
+  try {
+    if (target) { await target.click(); await page.waitForTimeout(400); }
+    await page.locator(PWD_FIELD).first().focus();
+  } catch { /* 못 해도 괜찮아요. 선생님이 직접 누르면 돼요 */ }
+  say(target
+    ? '🔑  인증서를 골라 두었어요. 크롬 창에서 암호만 입력하고 Enter 를 눌러 주세요.'
+    : '🔑  인증서 창을 열었어요. 인증서를 고르고 암호를 입력해 주세요.');
+}
+
 // 2단계: 인증서 고르기 → 암호 → 로그인 확인. 실패해도 다시 시도하지 않음.
 async function enterPassword(page, certName, pw, alerts) {
   // 인증서 목록은 창이 뜬 뒤에 채워져요
-  let target = null;
-  for (let i = 0; i < 20 && !target; i++) {
-    if (certName) {
-      const exact = page.locator(`div[title=${JSON.stringify(certName)}]:visible`);
-      if (await exact.count()) target = exact.first();
-    } else {
-      target = await onlyCertRow(page);
-    }
-    if (!target) await page.waitForTimeout(500);
+  const target = await findCert(page, certName);
+  if (target === 'many') {
+    throw new Blocked(`«${certName}» 이(가) 들어간 인증서가 여러 개라 고르지 않았어요. 암호는 넣지 않았어요.\n` +
+      '   «나이스-설정.cmd» 에서 인증서 이름을 더 길게 적어 주세요.');
   }
   if (!target) {
     throw new Blocked(certName
-      ? `인증서 목록에서 «${certName}» 을(를) 찾지 못했어요. 암호는 넣지 않았어요.\n` +
-        '   «나이스-설정.cmd» 에서 인증서 창에 보이는 이름 그대로 다시 적어 주세요.'
+      ? `인증서 목록에서 «${certName}» 이(가) 들어간 인증서를 찾지 못했어요. 암호는 넣지 않았어요.\n` +
+        '   «나이스-설정.cmd» 에서 인증서 창에 보이는 이름을 다시 적어 주세요.'
       : '인증서가 여러 개라 어느 것인지 모르겠어요. 암호는 넣지 않았어요.\n' +
         '   «나이스-설정.cmd» 에서 인증서 이름을 적어 주세요.');
   }
@@ -195,7 +237,8 @@ function scrub(text, pw) {
 
 async function waitForHuman(page, ctx, blocked) {
   say('\n⏸  ' + blocked.message);
-  say('⏸  열린 크롬 창에서 직접 로그인해 주세요. 이 검은 창을 닫으면 크롬도 같이 닫히니 최소화만 해 두세요.');
+  say('⏸  열린 크롬 창에서 직접 로그인해 주세요.');
+  popup(blocked.message + '\n\n열린 크롬 창에서 직접 로그인해 주세요.');
   await new Promise((r) => ctx.on('close', r));
 }
 
@@ -239,13 +282,15 @@ async function main() {
     }
     if (state === 'logged-in') {
       say('✅  이미 로그인돼 있어요.');
+    } else if (!pw) {
+      await prepareForHuman(page, (cfg.certName || '').trim());
     } else {
       await enterPassword(page, (cfg.certName || '').trim(), pw, alerts);
       say('✅  나이스 로그인 완료!');
       await closeNotices(page);
     }
     // 이 프로그램이 끝나면 크롬도 같이 닫히므로, 선생님이 크롬을 닫을 때까지 조용히 기다려요
-    say('   이 검은 창은 최소화해 두세요. 크롬을 닫으면 같이 꺼져요.');
+    say('   크롬을 닫으면 이 프로그램도 같이 꺼져요.');
     await new Promise((r) => ctx.on('close', r));
   } catch (e) {
     const blocked = e instanceof Blocked ? e
@@ -254,8 +299,10 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.log('\n❌  ' + (e instanceof Blocked ? e.message : '알 수 없는 오류로 멈췄어요.'));
+main().catch(async (e) => {
+  const msg = e instanceof Blocked ? e.message : '알 수 없는 오류로 멈췄어요.';
+  console.log('\n❌  ' + msg);
+  await popup(msg, 'Error');
   if (process.env.SB_NEIS_DEBUG && !(e instanceof Blocked)) console.log(e);   // 개발용 (암호가 섞일 수 있어 평소엔 안 찍음)
   process.exitCode = 1;
 });
