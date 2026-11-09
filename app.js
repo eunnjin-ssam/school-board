@@ -2358,8 +2358,8 @@ function openChulgyeol() {
   const month = new Date().getMonth() + 1;
   const body = openModal('출결 넣기', `
     <div class="ch-head">
-      <p class="muted small">노션 «출결관리 › 출결현황»에서 <b>${month}월</b> 줄 중 <b>«나이스» 체크가 안 된 것</b>을 읽어 나이스 출결에 저장하고, 노션에 체크해요.</p>
-      <button class="btn-primary" id="chLoad">${month}월 목록 불러오기</button>
+      <p class="muted small">노션의 &lt;출결관리&gt;의 데이터를 나이스 출결에 저장해요.</p>
+      <button class="btn-primary" id="chLoad">${month}월 출결 불러오기</button>
     </div>
     <div id="chBox"></div>`,
   { wide: true, onClose: () => { clearInterval(chulPoll); chulPoll = null; } });
@@ -2379,7 +2379,7 @@ function openChulgyeol() {
     const rows = s.rows || [], skip = s.skip || [];
     box.innerHTML = `
       ${rows.length ? `<p class="bk-line">넣을 줄 <b>${rows.length}개</b> (${esc(s.from)} ~ ${esc(s.to)})</p>${table(rows)}`
-        : `<p class="bk-done">넣을 줄이 없어요. (${esc(s.from)} ~ ${esc(s.to)})</p>`}
+        : `<p class="bk-done">모든 출결사항이 나이스에 저장되었습니다.</p>`}
       ${skip.length ? `<p class="bk-note">못 넣는 줄 ${skip.length}개 — 노션에서 고친 뒤 다시 불러 주세요.</p>${table(skip, true)}` : ''}
       ${rows.length ? `<div class="bk-actions"><button class="btn-primary" id="chSave">${icon('check')}나이스에 저장 (${rows.length}줄)</button></div>` : ''}
       <div id="chStatus"></div>`;
