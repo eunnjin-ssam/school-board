@@ -2342,7 +2342,7 @@ function openBokmu() {
 $('#bokmuBtn').addEventListener('click', openBokmu);
 
 /* =========================================================
-   출결 (노션 «출결현황» → 나이스 학생 출결)
+   출결 (노션 «출결현황» → 나이스 학생 출결, 또는 [바로 입력] 문장 → 노션에 줄 만들기 → 나이스)
    [목록 불러오기] → 도우미(/chulgyeol, mode list)가 neis-login\출결-실행.cmd 로 노션을 읽어 넣을 줄을 돌려줌 →
    [나이스에 저장] → 같은 길로 mode save (목록에서 본 줄만) → 진행 상황(/chulgyeol-status)을 보여 줘요.
    노션 토큰·나이스 로그인은 이 컴퓨터(neis-login)에만 있어요.
@@ -2361,7 +2361,15 @@ function openChulgyeol() {
       <p class="muted small">노션의 &lt;출결관리&gt;의 데이터를 나이스 출결에 저장해요.</p>
       <button class="btn-primary" id="chLoad">${month}월 출결 불러오기</button>
     </div>
-    <div id="chBox"></div>`,
+    <div id="chBox"></div>
+    <div class="ch-add">
+      <p class="ch-add-title"><b>바로 입력</b> <span class="muted small">노션 출결현황에 적고 나이스에도 저장해요. 한 줄에 한 건씩.</span></p>
+      <form id="chForm" class="ch-form" autocomplete="off">
+        <textarea class="box" id="chText" rows="3" placeholder="예: 민수 오늘 병결 감기&#10;서연 11월 3일~5일 체험학습 제주&#10;3번 어제 병조퇴 장염"></textarea>
+        <button class="btn-line" type="submit">해석</button>
+      </form>
+      <div id="chAdd"></div>
+    </div>`,
   { wide: true, onClose: () => { clearInterval(chulPoll); chulPoll = null; } });
   const box = $('#chBox', body);
   const krDay = s => s ? `${+s.slice(5, 7)}월 ${+s.slice(8, 10)}일` : '';   // 2026-11-01 → 11월 1일
@@ -2375,6 +2383,40 @@ function openChulgyeol() {
   const table = (rows, why) => rows.length ? `<table class="ch-table"><thead><tr><th>날짜</th><th>학생</th><th>나이스</th><th>사유</th>${why ? '<th>이유</th>' : ''}</tr></thead><tbody>${rows.map(row).join('')}</tbody></table>` : '';
 
   $('#chLoad', body).addEventListener('click', () => send({ mode: 'list' }));   // 기간은 나이스 프로그램이 «이번 달 전체»로 정해요
+
+  // 바로 입력: 문장 → 미리 보기 → [저장] → 나이스 프로그램이 노션에 줄을 만들고 나이스에 넣고 체크 (mode add)
+  const addBox = $('#chAdd', body);
+  $('#chForm', body).addEventListener('submit', e => {
+    e.preventDefault();
+    const parsed = Chulgyeol.parseChulgyeol($('#chText', body).value, S.students);
+    if (!parsed.length) { addBox.innerHTML = `<p class="bk-problem">문장을 적어 주세요.</p>`; return; }
+    const ok = parsed.filter(r => !r.problems.length), bad = parsed.filter(r => r.problems.length);
+    const notes = ok.flatMap(r => r.notes.filter(n => !/앞으로의 날짜/.test(n)).map(n => `${r.no}번 ${r.name}: ${n}`));
+    addBox.innerHTML = `
+      ${table(ok)}
+      ${notes.map(n => `<p class="bk-note">${esc(n)}</p>`).join('')}
+      ${bad.length ? `<p class="bk-note">이 줄은 못 넣어요 — 문장을 고쳐서 다시 [해석] 해 주세요.</p>
+        <table class="ch-table"><thead><tr><th>적은 문장</th><th>이유</th></tr></thead><tbody>${bad.map(r =>
+          `<tr><td>${esc(r.text)}</td><td class="ch-why">${esc(r.problems.join(' '))}</td></tr>`).join('')}</tbody></table>` : ''}
+      ${ok.length ? `<div class="bk-actions"><button class="btn-primary" id="chAddSave">${icon('check')}노션·나이스에 저장 (${ok.length}줄)</button></div>` : ''}
+      <div id="chAddStatus"></div>`;
+    hydrateIcons(addBox);
+    if (!ok.length) return;
+    $('#chAddSave', addBox).addEventListener('click', () => {
+      const st = $('#chAddStatus', addBox);
+      st.innerHTML = `<div class="bk-confirm"><p><b>노션에 적고 나이스 출결에 실제로 저장할까요?</b><br>위 ${ok.length}줄 · 저장하면 공식 기록이 돼요.</p>
+        <button class="btn-primary" id="chAddYes">저장</button><button class="btn-line" id="chAddNo">취소</button></div>`;
+      $('#chAddYes', st).addEventListener('click', () => {
+        $('#chAddSave', addBox).disabled = true;
+        send({ mode: 'add', rows: ok.map(({ no, name, kind, date, end, reason }) => ({ no, name, kind, date, end, reason })) }, st);
+      });
+      $('#chAddNo', st).addEventListener('click', () => { st.innerHTML = ''; });
+      $('#chAddYes', st).focus();
+    });
+  });
+  $('#chText', body).addEventListener('keydown', e => {   // Ctrl+Enter = 해석
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); $('#chForm', body).requestSubmit(); }
+  });
 
   function showList(s) {
     const rows = s.rows || [], skip = s.skip || [];
