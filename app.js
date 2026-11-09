@@ -2364,6 +2364,7 @@ function openChulgyeol() {
     <div id="chBox"></div>`,
   { wide: true, onClose: () => { clearInterval(chulPoll); chulPoll = null; } });
   const box = $('#chBox', body);
+  const krDay = s => s ? `${+s.slice(5, 7)}월 ${+s.slice(8, 10)}일` : '';   // 2026-11-01 → 11월 1일
   // 날짜: 이번 달로 자른 기간. 노션 기간이 달에 걸쳐 있으면 원래 기간·다음 달 남음을 작게 덧붙여요.
   const md = s => esc(String(s || '').slice(5));
   const when = r => `${md(r.date)}${r.end ? '~' + md(r.end) : ''}` +
@@ -2379,7 +2380,7 @@ function openChulgyeol() {
     const rows = s.rows || [], skip = s.skip || [];
     box.innerHTML = `
       ${rows.length ? `<p class="bk-line">넣을 줄 <b>${rows.length}개</b> (${esc(s.from)} ~ ${esc(s.to)})</p>${table(rows)}`
-        : `<p class="bk-done">모든 출결사항이 나이스에 저장되었습니다.</p>`}
+        : `<p class="bk-done">모든 출결사항이 나이스에 저장되었습니다. (${esc(krDay(s.from))} ~ ${esc(krDay(s.to))})</p>`}
       ${skip.length ? `<p class="bk-note">못 넣는 줄 ${skip.length}개 — 노션에서 고친 뒤 다시 불러 주세요.</p>${table(skip, true)}` : ''}
       ${rows.length ? `<div class="bk-actions"><button class="btn-primary" id="chSave">${icon('check')}나이스에 저장 (${rows.length}줄)</button></div>` : ''}
       <div id="chStatus"></div>`;
