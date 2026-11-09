@@ -2342,6 +2342,106 @@ function openBokmu() {
 $('#bokmuBtn').addEventListener('click', openBokmu);
 
 /* =========================================================
+   출결 (노션 «출결현황» → 나이스 학생 출결)
+   [목록 불러오기] → 도우미(/chulgyeol, mode list)가 neis-login\출결-실행.cmd 로 노션을 읽어 넣을 줄을 돌려줌 →
+   [나이스에 저장] → 같은 길로 mode save (목록에서 본 줄만) → 진행 상황(/chulgyeol-status)을 보여 줘요.
+   노션 토큰·나이스 로그인은 이 컴퓨터(neis-login)에만 있어요.
+   ========================================================= */
+const CHUL_NEIS = {
+  병결석: '결석 질병♡', 출석인정결석: '결석 출석인정△', 체험학습: '결석 출석인정△', 가정학습: '결석 출석인정△',
+  미인정결석: '결석 미인정♥', 기타결석: '결석 기타▲', 병지각: '지각 질병#', 미인정지각: '지각 미인정X',
+  병조퇴: '조퇴 질병@', 출석인정조퇴: '조퇴 출석인정▷',
+};
+let chulPoll = null;
+
+function openChulgyeol() {
+  const month = new Date().getMonth() + 1;
+  const body = openModal('출결 넣기', `
+    <div class="ch-head">
+      <p class="muted small">노션 «출결관리 › 출결현황»에서 <b>${month}월</b> 줄 중 <b>«나이스» 체크가 안 된 것</b>을 읽어 나이스 출결에 저장하고, 노션에 체크해요.</p>
+      <button class="btn-primary" id="chLoad">${month}월 목록 불러오기</button>
+    </div>
+    <div id="chBox"></div>
+    <p class="muted small bk-foot">이번 달(나이스에서 조회되는 달)만 다뤄요. 달에 걸친 줄은 이번 달 날만 넣고, 노션 체크는 다음 달에 마저 넣은 뒤 해요. 이미 같은 기호가 있으면 넘어가고, 다른 값이 있으면 바꾸지 않고 건너뛰어요. 기간 결석은 연속출결입력으로 넣고, 토·일은 나이스가 빼고 저장해요.</p>`,
+  { wide: true, onClose: () => { clearInterval(chulPoll); chulPoll = null; } });
+  const box = $('#chBox', body);
+  // 날짜: 이번 달로 자른 기간. 노션 기간이 달에 걸쳐 있으면 원래 기간·다음 달 남음을 작게 덧붙여요.
+  const md = s => esc(String(s || '').slice(5));
+  const when = r => `${md(r.date)}${r.end ? '~' + md(r.end) : ''}` +
+    (r.orig ? `<br><small class="muted">노션 ${esc(r.orig.replace(/\d{4}-/g, ''))}${r.partial ? ' · 다음 달 부분은 다음 달에' : ''}</small>` : '') +
+    (r.already ? `<br><small class="muted">이미 들어 있었음</small>` : '');
+  const row = r => `<tr><td>${when(r)}</td><td>${esc(String(r.no ?? '?'))}번 ${esc(r.name || '')}</td>` +
+    `<td>${esc(r.kind)} → <b>${esc(CHUL_NEIS[r.kind] || '?')}</b></td><td>${esc(r.reason)}</td>${r.why ? `<td class="ch-why">${esc(r.why)}</td>` : ''}</tr>`;
+  const table = (rows, why) => rows.length ? `<table class="ch-table"><thead><tr><th>날짜</th><th>학생</th><th>나이스</th><th>사유</th>${why ? '<th>이유</th>' : ''}</tr></thead><tbody>${rows.map(row).join('')}</tbody></table>` : '';
+
+  $('#chLoad', body).addEventListener('click', () => send({ mode: 'list' }));   // 기간은 나이스 프로그램이 «이번 달 전체»로 정해요
+
+  function showList(s) {
+    const rows = s.rows || [], skip = s.skip || [];
+    box.innerHTML = `
+      ${rows.length ? `<p class="bk-line">넣을 줄 <b>${rows.length}개</b> (${esc(s.from)} ~ ${esc(s.to)})</p>${table(rows)}`
+        : `<p class="bk-done">넣을 줄이 없어요. (${esc(s.from)} ~ ${esc(s.to)})</p>`}
+      ${skip.length ? `<p class="bk-note">못 넣는 줄 ${skip.length}개 — 노션에서 고친 뒤 다시 불러 주세요.</p>${table(skip, true)}` : ''}
+      ${rows.length ? `<div class="bk-actions"><button class="btn-primary" id="chSave">${icon('check')}나이스에 저장 (${rows.length}줄)</button></div>` : ''}
+      <div id="chStatus"></div>`;
+    hydrateIcons(box);
+    if (!rows.length) return;
+    $('#chSave', box).addEventListener('click', () => {
+      const st = $('#chStatus', box);
+      st.innerHTML = `<div class="bk-confirm"><p><b>나이스 출결에 실제로 저장할까요?</b><br>위 ${rows.length}줄 · 저장하면 공식 기록이 돼요.</p>
+        <button class="btn-primary" id="chYes">저장</button><button class="btn-line" id="chNo">취소</button></div>`;
+      $('#chYes', st).addEventListener('click', () => {
+        $('#chSave', box).disabled = true;
+        send({ mode: 'save', from: s.from, to: s.to, pages: rows.map(r => r.pageId) }, st);
+      });
+      $('#chNo', st).addEventListener('click', () => { st.innerHTML = ''; });
+      $('#chYes', st).focus();
+    });
+  }
+
+  function send(v, out = box) {
+    const H = window.SCHOOLBOARD_HELPER, runner = bokmuRunnerPath()?.replace(/복무-실행\.cmd$/, '출결-실행.cmd');
+    if (!H || !H.token) { out.innerHTML = `<p class="bk-problem">폴더 열기 도우미가 설치돼 있지 않아요. folder-opener 의 설치 파일을 먼저 실행해 주세요.</p>`; return; }
+    if (!runner) { out.innerHTML = `<p class="bk-problem">출결 넣기는 스쿨보드를 index.html 파일로 열었을 때만 돼요.</p>`; return; }
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    out.innerHTML = `<p class="bk-step"><span class="bk-spin"></span>요청을 보내는 중…</p>`;
+    fetch(`http://127.0.0.1:${H.port}/chulgyeol?t=${H.token}&p=${b64url(runner)}&q=${b64url(JSON.stringify({ id, ...v }))}`, { cache: 'no-store' })
+      .then(r => {
+        if (r.status === 403) throw new Error('도우미 열쇠가 맞지 않아요. folder-opener 설치 파일을 다시 실행해 주세요.');
+        if (r.status === 404) throw new Error('도우미가 예전 버전이에요. folder-opener 설치 파일을 다시 실행해 주세요.');
+        if (!r.ok) throw new Error('출결 프로그램을 실행하지 못했어요. 이 PC에 neis-login 폴더(출결-실행.cmd)가 있는지, 실행 허락 창에서 [예]를 눌렀는지 확인해 주세요.');
+        watch(id, v.mode, out);
+      })
+      .catch(err => {
+        out.innerHTML = `<p class="bk-problem">${esc(err.message === 'Failed to fetch' ? '폴더 열기 도우미가 꺼져 있어요. 컴퓨터를 다시 켜거나 folder-opener 설치 파일을 다시 실행해 주세요.' : err.message)}</p>`;
+      });
+  }
+
+  function watch(id, mode, out) {
+    const H = window.SCHOOLBOARD_HELPER;
+    const started = Date.now();
+    clearInterval(chulPoll);
+    chulPoll = setInterval(async () => {
+      let s = {};
+      try { s = await (await fetch(`http://127.0.0.1:${H.port}/chulgyeol-status?t=${H.token}`, { cache: 'no-store' })).json(); } catch (e) { /* 다음에 다시 */ }
+      const mine = s.id === id;
+      if (!mine && Date.now() - started > 30000) s = { state: 'error', message: '출결 프로그램이 시작되지 않았어요. 실행 허락 창이 떠 있는지 확인해 주세요.' };
+      if (Date.now() - started > 15 * 60 * 1000) s = { state: 'error', message: '15분이 지나도 끝나지 않았어요. 나이스 크롬 창을 확인해 주세요.' };
+      if (mine && s.state === 'running') { out.innerHTML = `<p class="bk-step"><span class="bk-spin"></span>${esc(s.step || '진행 중…')}</p>`; return; }
+      if (!mine && s.state !== 'error') { out.innerHTML = `<p class="bk-step"><span class="bk-spin"></span>출결 프로그램을 여는 중…</p>`; return; }
+      clearInterval(chulPoll); chulPoll = null;
+      if (s.state === 'list') { showList(s); return; }
+      const done = s.done || [], failed = s.failed || [];
+      out.innerHTML = `<p class="${s.state === 'done' ? 'bk-done' : 'bk-problem'}">${esc(s.message || '끝났어요.')}</p>
+        ${done.length ? `<p class="bk-line">처리한 줄</p>${table(done)}` : ''}
+        ${failed.length ? `<p class="bk-line">못 넣은 줄</p>${table(failed, true)}` : ''}`;
+      if (s.state === 'done') toast(`나이스 출결 ${done.length}줄을 저장했어요.`);
+    }, 1500);
+  }
+}
+$('#chulBtn').addEventListener('click', openChulgyeol);
+
+/* =========================================================
    학생 화면 (전자칠판용 창) — classroom.html
    ========================================================= */
 let classroomWin = null;

@@ -87,14 +87,23 @@ static class SchoolBoardOpen
                 Match m = Regex.Match(line, @"^GET /open\?t=([A-Za-z0-9]+)&p=([A-Za-z0-9_-]+) HTTP/1\.[01]$");
                 Match bk = Regex.Match(line, @"^GET /bokmu\?t=([A-Za-z0-9]+)&p=([A-Za-z0-9_-]+)&q=([A-Za-z0-9_-]+) HTTP/1\.[01]$");
                 Match bs = Regex.Match(line, @"^GET /bokmu-status\?t=([A-Za-z0-9]+) HTTP/1\.[01]$");
+                Match cg = Regex.Match(line, @"^GET /chulgyeol\?t=([A-Za-z0-9]+)&p=([A-Za-z0-9_-]+)&q=([A-Za-z0-9_-]+) HTTP/1\.[01]$");
+                Match cs = Regex.Match(line, @"^GET /chulgyeol-status\?t=([A-Za-z0-9]+) HTTP/1\.[01]$");
                 if (m.Success)
                     status = m.Groups[1].Value != token ? 403 : (Open(m.Groups[2].Value) == 0 ? 200 : 422);
                 else if (bk.Success)
-                    status = bk.Groups[1].Value != token ? 403 : (StartBokmu(bk.Groups[2].Value, bk.Groups[3].Value) ? 200 : 422);
+                    status = bk.Groups[1].Value != token ? 403 : (StartJob("복무-실행.cmd", "bokmu", 2000, bk.Groups[2].Value, bk.Groups[3].Value) ? 200 : 422);
                 else if (bs.Success)
                 {
                     if (bs.Groups[1].Value != token) status = 403;
-                    else { status = 200; json = ReadBokmuStatus(); }
+                    else { status = 200; json = ReadJobStatus("bokmu"); }
+                }
+                else if (cg.Success)
+                    status = cg.Groups[1].Value != token ? 403 : (StartJob("출결-실행.cmd", "chulgyeol", 8000, cg.Groups[2].Value, cg.Groups[3].Value) ? 200 : 422);
+                else if (cs.Success)
+                {
+                    if (cs.Groups[1].Value != token) status = 403;
+                    else { status = 200; json = ReadJobStatus("chulgyeol"); }
                 }
                 else if (line.StartsWith("GET /ping ")) status = 200;
 
@@ -110,10 +119,10 @@ static class SchoolBoardOpen
         catch { }
     }
 
-    // ---------- 나이스 복무 신청 ----------
-    // 스쿨보드 [복무] 창이 보낸 요청(JSON)을 이 컴퓨터의 나이스 폴더에 적어 두고, «복무-실행.cmd» 를 실행해요.
-    // 실행 파일은 이름이 정확히 «복무-실행.cmd» 인 것만 받고, 처음 한 번은 다른 프로그램처럼 허락을 물어봐요.
-    // 진행 상황은 복무 프로그램이 bokmu-status.json 에 남기고, 스쿨보드가 /bokmu-status 로 읽어 가요.
+    // ---------- 나이스 복무 신청 / 학생 출결 ----------
+    // 스쿨보드 [복무]·[출결] 창이 보낸 요청(JSON)을 이 컴퓨터의 나이스 폴더에 적어 두고, «복무-실행.cmd» / «출결-실행.cmd» 를 실행해요.
+    // 실행 파일은 이름이 정확히 그것인 것만 받고, 처음 한 번은 다른 프로그램처럼 허락을 물어봐요.
+    // 진행 상황은 나이스 프로그램이 bokmu-status.json / chulgyeol-status.json 에 남기고, 스쿨보드가 /…-status 로 읽어 가요.
     static readonly string NeisDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SchoolBoard", "neis");
 
     static string FromB64Url(string s)
@@ -123,27 +132,27 @@ static class SchoolBoardOpen
         return Encoding.UTF8.GetString(Convert.FromBase64String(b));
     }
 
-    static bool StartBokmu(string pathB64, string reqB64)
+    static bool StartJob(string runner, string job, int maxLen, string pathB64, string reqB64)
     {
         try
         {
             string p = FromB64Url(pathB64).Trim().Trim('"').Replace('/', '\\');
-            if (!string.Equals(Path.GetFileName(p), "복무-실행.cmd", StringComparison.OrdinalIgnoreCase)) return false;
+            if (!string.Equals(Path.GetFileName(p), runner, StringComparison.OrdinalIgnoreCase)) return false;
             string req = FromB64Url(reqB64).Trim();
-            if (req.Length > 2000 || !req.StartsWith("{") || !req.EndsWith("}")) return false;
+            if (req.Length > maxLen || !req.StartsWith("{") || !req.EndsWith("}")) return false;
             Directory.CreateDirectory(NeisDir);
-            File.WriteAllText(Path.Combine(NeisDir, "bokmu-request.json"), req, new UTF8Encoding(false));
-            File.WriteAllText(Path.Combine(NeisDir, "bokmu-status.json"), "{\"state\":\"queued\"}", new UTF8Encoding(false));
+            File.WriteAllText(Path.Combine(NeisDir, job + "-request.json"), req, new UTF8Encoding(false));
+            File.WriteAllText(Path.Combine(NeisDir, job + "-status.json"), "{\"state\":\"queued\"}", new UTF8Encoding(false));
             return Open(pathB64) == 0;
         }
         catch { return false; }
     }
 
-    static string ReadBokmuStatus()
+    static string ReadJobStatus(string job)
     {
         try
         {
-            string f = Path.Combine(NeisDir, "bokmu-status.json");
+            string f = Path.Combine(NeisDir, job + "-status.json");
             if (!File.Exists(f)) return "{}";
             using (FileStream fs = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
             using (StreamReader sr = new StreamReader(fs, Encoding.UTF8))
