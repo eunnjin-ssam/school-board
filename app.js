@@ -2361,8 +2361,7 @@ function openChulgyeol() {
       <p class="muted small">노션 «출결관리 › 출결현황»에서 <b>${month}월</b> 줄 중 <b>«나이스» 체크가 안 된 것</b>을 읽어 나이스 출결에 저장하고, 노션에 체크해요.</p>
       <button class="btn-primary" id="chLoad">${month}월 목록 불러오기</button>
     </div>
-    <div id="chBox"></div>
-    <p class="muted small bk-foot">이번 달(나이스에서 조회되는 달)만 다뤄요. 달에 걸친 줄은 이번 달 날만 넣고, 노션 체크는 다음 달에 마저 넣은 뒤 해요. 이미 같은 기호가 있으면 넘어가고, 다른 값이 있으면 바꾸지 않고 건너뛰어요. 기간 결석은 연속출결입력으로 넣고, 토·일은 나이스가 빼고 저장해요.</p>`,
+    <div id="chBox"></div>`,
   { wide: true, onClose: () => { clearInterval(chulPoll); chulPoll = null; } });
   const box = $('#chBox', body);
   // 날짜: 이번 달로 자른 기간. 노션 기간이 달에 걸쳐 있으면 원래 기간·다음 달 남음을 작게 덧붙여요.
