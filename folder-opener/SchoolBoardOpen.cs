@@ -83,13 +83,24 @@ static class SchoolBoardOpen
                 while (!string.IsNullOrEmpty(h = r.ReadLine())) { }   // 나머지 머리글은 읽고 버림
 
                 int status = 404;
+                string json = null;   // 복무 진행 상황을 돌려줄 때만 씀
                 Match m = Regex.Match(line, @"^GET /open\?t=([A-Za-z0-9]+)&p=([A-Za-z0-9_-]+) HTTP/1\.[01]$");
+                Match bk = Regex.Match(line, @"^GET /bokmu\?t=([A-Za-z0-9]+)&p=([A-Za-z0-9_-]+)&q=([A-Za-z0-9_-]+) HTTP/1\.[01]$");
+                Match bs = Regex.Match(line, @"^GET /bokmu-status\?t=([A-Za-z0-9]+) HTTP/1\.[01]$");
                 if (m.Success)
                     status = m.Groups[1].Value != token ? 403 : (Open(m.Groups[2].Value) == 0 ? 200 : 422);
+                else if (bk.Success)
+                    status = bk.Groups[1].Value != token ? 403 : (StartBokmu(bk.Groups[2].Value, bk.Groups[3].Value) ? 200 : 422);
+                else if (bs.Success)
+                {
+                    if (bs.Groups[1].Value != token) status = 403;
+                    else { status = 200; json = ReadBokmuStatus(); }
+                }
                 else if (line.StartsWith("GET /ping ")) status = 200;
 
-                byte[] body = Encoding.ASCII.GetBytes(status == 200 ? "ok" : "no");
-                string head = "HTTP/1.1 " + status + " X\r\nContent-Type: text/plain\r\nAccess-Control-Allow-Origin: *\r\n" +
+                byte[] body = json != null ? new UTF8Encoding(false).GetBytes(json) : Encoding.ASCII.GetBytes(status == 200 ? "ok" : "no");
+                string type = json != null ? "application/json; charset=utf-8" : "text/plain";
+                string head = "HTTP/1.1 " + status + " X\r\nContent-Type: " + type + "\r\nAccess-Control-Allow-Origin: *\r\n" +
                               "Cache-Control: no-store\r\nContent-Length: " + body.Length + "\r\nConnection: close\r\n\r\n";
                 byte[] hb = Encoding.ASCII.GetBytes(head);
                 s.Write(hb, 0, hb.Length);
@@ -97,6 +108,51 @@ static class SchoolBoardOpen
             }
         }
         catch { }
+    }
+
+    // ---------- 나이스 복무 신청 ----------
+    // 스쿨보드 [복무] 창이 보낸 요청(JSON)을 이 컴퓨터의 나이스 폴더에 적어 두고, «복무-실행.cmd» 를 실행해요.
+    // 실행 파일은 이름이 정확히 «복무-실행.cmd» 인 것만 받고, 처음 한 번은 다른 프로그램처럼 허락을 물어봐요.
+    // 진행 상황은 복무 프로그램이 bokmu-status.json 에 남기고, 스쿨보드가 /bokmu-status 로 읽어 가요.
+    static readonly string NeisDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SchoolBoard", "neis");
+
+    static string FromB64Url(string s)
+    {
+        string b = s.Replace('-', '+').Replace('_', '/');
+        b += new string('=', (4 - b.Length % 4) % 4);
+        return Encoding.UTF8.GetString(Convert.FromBase64String(b));
+    }
+
+    static bool StartBokmu(string pathB64, string reqB64)
+    {
+        try
+        {
+            string p = FromB64Url(pathB64).Trim().Trim('"').Replace('/', '\\');
+            if (!string.Equals(Path.GetFileName(p), "복무-실행.cmd", StringComparison.OrdinalIgnoreCase)) return false;
+            string req = FromB64Url(reqB64).Trim();
+            if (req.Length > 2000 || !req.StartsWith("{") || !req.EndsWith("}")) return false;
+            Directory.CreateDirectory(NeisDir);
+            File.WriteAllText(Path.Combine(NeisDir, "bokmu-request.json"), req, new UTF8Encoding(false));
+            File.WriteAllText(Path.Combine(NeisDir, "bokmu-status.json"), "{\"state\":\"queued\"}", new UTF8Encoding(false));
+            return Open(pathB64) == 0;
+        }
+        catch { return false; }
+    }
+
+    static string ReadBokmuStatus()
+    {
+        try
+        {
+            string f = Path.Combine(NeisDir, "bokmu-status.json");
+            if (!File.Exists(f)) return "{}";
+            using (FileStream fs = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (StreamReader sr = new StreamReader(fs, Encoding.UTF8))
+            {
+                string s = sr.ReadToEnd().Trim();
+                return s.StartsWith("{") ? s : "{}";
+            }
+        }
+        catch { return "{}"; }
     }
 
     // ---------- 공통: 경로 열기 ----------

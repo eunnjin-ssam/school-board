@@ -580,3 +580,22 @@ textarea.box, input.box { width: 100%; resize: vertical; }
   .cand { grid-template-columns: 20px 1fr 26px; }
   .cand select, .cand input[type="date"] { grid-column: 2; }
 }
+
+/* ---------- 복무 신청 ---------- */
+.bk-form { display: flex; gap: 8px; margin-bottom: 14px; }
+.bk-form input { flex: 1; }
+.bk-grid { display: grid; grid-template-columns: 1.1fr 1.3fr 1fr 1fr; gap: 10px; }
+.bk-grid .field { margin-bottom: 6px; }
+.bk-line { margin: 4px 0 10px; font-size: 14px; color: var(--muted); }
+.bk-line b { color: var(--text); font-weight: 600; }
+.bk-note, .bk-problem, .bk-done, .bk-step { margin: 6px 0; padding: 8px 12px; border-radius: 10px; font-size: 14px; }
+.bk-note { background: var(--amber-soft); color: #8a5a00; }
+.bk-problem { background: var(--red-soft); color: var(--red); }
+.bk-done { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.bk-step { background: var(--blue-soft); color: var(--blue); display: flex; align-items: center; gap: 8px; }
+.bk-spin { width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; flex: none; }
+.bk-actions { display: flex; justify-content: flex-end; gap: 8px; margin: 12px 0 4px; }
+.bk-confirm { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 12px; }
+.bk-confirm p { margin: 0 auto 0 0; font-size: 14px; }
+.bk-foot { margin: 12px 0 0; font-size: 12px; }
+@media (max-width: 640px) { .bk-grid { grid-template-columns: 1fr 1fr; } }

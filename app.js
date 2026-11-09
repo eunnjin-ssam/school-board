@@ -2213,6 +2213,135 @@ function maybeAutoBrief() {
 $('#briefBtn').addEventListener('click', openBrief);
 
 /* =========================================================
+   복무 (나이스 조퇴·외출·지각 신청)
+   «오늘 세시에 조퇴할래» 같은 문장을 bokmu.js 가 해석 → 미리 보기에서 확인·수정 →
+   폴더 열기 도우미(/bokmu)가 이 컴퓨터의 neis-login\복무-실행.cmd 를 실행 → 진행 상황(/bokmu-status)을 보여 줘요.
+   나이스 프로그램(neis-login)은 학교 PC에만 있는 비공개 폴더예요.
+   ========================================================= */
+const BOKMU_KINDS = ['조퇴', '외출', '지각', '병조퇴', '병외출', '병지각'];
+let bokmuPoll = null;
+
+// 스쿨보드를 파일로 열었을 때 그 폴더 안의 neis-login\복무-실행.cmd 경로
+function bokmuRunnerPath() {
+  if (location.protocol !== 'file:') return null;
+  const p = decodeURIComponent(location.pathname).replace(/^\/+/, '').replace(/\//g, '\\');
+  return p.replace(/\\[^\\]*$/, '') + '\\neis-login\\복무-실행.cmd';
+}
+const b64url = s => btoa(String.fromCharCode(...new TextEncoder().encode(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+// 미리 보기 값 검사 (문장 해석 뒤 선생님이 고친 값도 같은 규칙으로)
+function bokmuCheck(v) {
+  const p = [];
+  if (!BOKMU_KINDS.includes(v.kind)) p.push('종류를 골라 주세요.');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v.date || '')) p.push('날짜를 골라 주세요.');
+  for (const [k, t] of [['시작', v.start], ['끝', v.end]]) {
+    if (!/^\d{2}:\d{2}$/.test(t || '')) p.push(`${k} 시각을 넣어 주세요.`);
+    else if (+t.slice(3) % 5) p.push(`${k} 시각 ${t}: 나이스는 5분 단위만 고를 수 있어요.`);
+  }
+  if (v.start && v.end && v.start >= v.end) p.push('끝나는 시각이 시작 시각보다 늦어야 해요.');
+  return p;
+}
+
+function openBokmu() {
+  const body = openModal('복무 신청', `
+    <form id="bkForm" class="bk-form" autocomplete="off">
+      <input class="box" id="bkText" placeholder="예: 오늘 세시에 조퇴할래 · 내일 10시까지 병원 들렀다 지각 · 금요일 1시부터 2시까지 외출" autofocus>
+      <button class="btn-primary" type="submit">해석</button>
+    </form>
+    <div id="bkPreview"></div>
+    <p class="muted small bk-foot">조퇴·병조퇴는 끝이 ${Bokmu.WORK_END}, 지각·병지각은 시작이 ${Bokmu.WORK_START}로 고정이에요. 사유는 개인 용무 / 병원 진료, 결재선은 «조퇴, 지각, 외출»로 들어가요.</p>`,
+  { wide: true, onClose: () => { clearInterval(bokmuPoll); bokmuPoll = null; } });
+
+  const render = (v, notes = []) => {
+    const sick = v.kind && v.kind.startsWith('병');
+    const fixedEnd = /조퇴$/.test(v.kind || ''), fixedStart = /지각$/.test(v.kind || '');
+    const probs = bokmuCheck(v);
+    $('#bkPreview', body).innerHTML = `
+      <div class="bk-grid">
+        <label class="field"><span>종류</span><select id="bkKind">${['', ...BOKMU_KINDS].map(k => `<option${k === v.kind ? ' selected' : ''}>${k}</option>`).join('')}</select></label>
+        <label class="field"><span>날짜</span><input type="date" id="bkDate" value="${esc(v.date || '')}"></label>
+        <label class="field"><span>시작${fixedStart ? ' <small>(고정)</small>' : ''}</span><input type="time" step="300" id="bkStart" value="${esc(v.start || '')}"${fixedStart ? ' disabled' : ''}></label>
+        <label class="field"><span>끝${fixedEnd ? ' <small>(고정)</small>' : ''}</span><input type="time" step="300" id="bkEnd" value="${esc(v.end || '')}"${fixedEnd ? ' disabled' : ''}></label>
+      </div>
+      <p class="bk-line">근무상황 <b>${v.kind ? (sick ? '병가' : '연가') + ' / ' + esc(v.kind) : '—'}</b> · 사유 <b>${v.kind ? (sick ? '병원 진료' : '개인 용무') : '—'}</b> · 비공개 <b>사유</b></p>
+      ${notes.map(n => `<p class="bk-note">${esc(n)}</p>`).join('')}
+      ${probs.map(n => `<p class="bk-problem">${esc(n)}</p>`).join('')}
+      <div class="bk-actions">
+        <button class="btn-line" id="bkFill"${probs.length ? ' disabled' : ''} title="나이스에 칸만 채워 두고 멈춰요. 승인요청은 직접 눌러요.">칸 채우기까지</button>
+        <button class="btn-primary" id="bkSubmit"${probs.length ? ' disabled' : ''}>${icon('check')}상신하기</button>
+      </div>
+      <div id="bkStatus"></div>`;
+    hydrateIcons($('#bkPreview', body));
+    const read = () => {
+      const kind = $('#bkKind', body).value;
+      let start = $('#bkStart', body).value, end = $('#bkEnd', body).value;
+      if (/조퇴$/.test(kind)) end = Bokmu.WORK_END;
+      if (/지각$/.test(kind)) start = Bokmu.WORK_START;
+      return { kind, date: $('#bkDate', body).value, start, end };
+    };
+    $$('#bkKind, #bkDate, #bkStart, #bkEnd', body).forEach(el => el.addEventListener('change', () => render(read())));
+    $('#bkFill', body).addEventListener('click', () => sendBokmu(read(), undefined));
+    $('#bkSubmit', body).addEventListener('click', () => {
+      const x = read();
+      const box = $('#bkStatus', body);
+      box.innerHTML = `<div class="bk-confirm"><p><b>나이스에 실제로 상신할까요?</b><br>${esc(x.kind)} · ${esc(x.date)} ${esc(x.start)}~${esc(x.end)}</p>
+        <button class="btn-primary" id="bkYes">상신</button><button class="btn-line" id="bkNo">취소</button></div>`;
+      $('#bkYes', box).addEventListener('click', () => sendBokmu(x, '상신'));
+      $('#bkNo', box).addEventListener('click', () => { box.innerHTML = ''; });
+      $('#bkYes', box).focus();
+    });
+  };
+
+  $('#bkForm', body).addEventListener('submit', e => {
+    e.preventDefault();
+    const r = Bokmu.parseBokmu($('#bkText', body).value);
+    // 막는 문제(빨강)는 미리 보기 값으로 다시 검사해서 보여 주므로, 여기서는 알림(노랑)만 넘겨요
+    render({ kind: r.kind || '', date: r.date, start: r.start || '', end: r.end || '' }, r.notes);
+  });
+
+  function sendBokmu(v, until) {
+    const box = $('#bkStatus', body);
+    const H = window.SCHOOLBOARD_HELPER, runner = bokmuRunnerPath();
+    if (!H || !H.token) { box.innerHTML = `<p class="bk-problem">폴더 열기 도우미가 설치돼 있지 않아요. folder-opener 의 설치 파일을 먼저 실행해 주세요.</p>`; return; }
+    if (!runner) { box.innerHTML = `<p class="bk-problem">복무 신청은 스쿨보드를 index.html 파일로 열었을 때만 돼요.</p>`; return; }
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const q = b64url(JSON.stringify({ id, ...v, until }));
+    $$('#bkFill, #bkSubmit', body).forEach(b => { b.disabled = true; });
+    box.innerHTML = `<p class="bk-step">요청을 보내는 중…</p>`;
+    fetch(`http://127.0.0.1:${H.port}/bokmu?t=${H.token}&p=${b64url(runner)}&q=${q}`, { cache: 'no-store' })
+      .then(r => {
+        if (r.status === 403) throw new Error('도우미 열쇠가 맞지 않아요. folder-opener 설치 파일을 다시 실행해 주세요.');
+        if (!r.ok) throw new Error('복무 프로그램을 실행하지 못했어요. 이 PC에 neis-login 폴더(복무-실행.cmd)가 있는지, 실행 허락 창에서 [예]를 눌렀는지 확인해 주세요.');
+        watchBokmu(id, box);
+      })
+      .catch(err => {
+        box.innerHTML = `<p class="bk-problem">${esc(err.message === 'Failed to fetch' ? '폴더 열기 도우미가 꺼져 있어요. 컴퓨터를 다시 켜거나 folder-opener 설치 파일을 다시 실행해 주세요.' : err.message)}</p>`;
+        $$('#bkFill, #bkSubmit', body).forEach(b => { b.disabled = false; });
+      });
+  }
+
+  function watchBokmu(id, box) {
+    const H = window.SCHOOLBOARD_HELPER;
+    const started = Date.now();
+    clearInterval(bokmuPoll);
+    bokmuPoll = setInterval(async () => {
+      let s = {};
+      try { s = await (await fetch(`http://127.0.0.1:${H.port}/bokmu-status?t=${H.token}`, { cache: 'no-store' })).json(); } catch (e) { /* 다음에 다시 */ }
+      const mine = s.id === id;
+      if (!mine && Date.now() - started > 30000) s = { state: 'error', message: '복무 프로그램이 시작되지 않았어요. 실행 허락 창이 떠 있는지 확인해 주세요.' };
+      if (mine && s.state === 'running') { box.innerHTML = `<p class="bk-step"><span class="bk-spin"></span>${esc(s.step || '진행 중…')}</p>`; return; }
+      if (!mine && s.state !== 'error') { box.innerHTML = `<p class="bk-step"><span class="bk-spin"></span>복무 프로그램을 여는 중…</p>`; return; }
+      clearInterval(bokmuPoll); bokmuPoll = null;
+      const ok = ['done', 'filled', 'line'].includes(s.state);
+      box.innerHTML = `<p class="${ok ? 'bk-done' : 'bk-problem'}">${esc(s.message || '끝났어요.')}</p>${s.row ? `<p class="muted small">${esc(s.row)}</p>` : ''}`;
+      if (s.state === 'done') toast('나이스 복무를 상신했어요.');
+      if (Date.now() - started > 6 * 60 * 1000) box.innerHTML = `<p class="bk-problem">6분이 지나도 끝나지 않았어요. 나이스 크롬 창을 확인해 주세요.</p>`;
+    }, 1500);
+  }
+}
+$('#bokmuBtn').addEventListener('click', openBokmu);
+
+/* =========================================================
    학생 화면 (전자칠판용 창) — classroom.html
    ========================================================= */
 let classroomWin = null;
