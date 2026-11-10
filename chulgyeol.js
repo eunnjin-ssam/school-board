@@ -138,9 +138,9 @@
       if (end && end < start) { problems.push('끝 날짜가 시작 날짜보다 빨라요.'); end = null; }
       if (end && ymd(end) === ymd(start)) end = null;
       if (ymd(start).slice(0, 7) !== month)
-        problems.push(`이번 달(${+month.slice(5)}월) 출결만 바로 넣을 수 있어요. 다른 달은 노션에 적어 두고 그 달에 [불러오기] 해 주세요.`);
+        problems.push(`이번 달(${+month.slice(5)}월) 출결만 바로 넣을 수 있어요. 다른 달은 노션에 적어 두고 그 달에 [확인하기] 로 넣어 주세요.`);
       else if (end && ymd(end).slice(0, 7) !== month)
-        notes.push('기간이 다음 달까지 이어져요. 이번 달 부분만 나이스에 넣고, 다음 달 부분은 다음 달 [불러오기] 로 넣어요.');
+        notes.push('기간이 다음 달까지 이어져요. 이번 달 부분만 나이스에 넣고, 다음 달 부분은 다음 달 [확인하기] 로 넣어요.');
       if (!end && isWeekend(start)) problems.push(`${+ymd(start).slice(5, 7)}월 ${start.getDate()}일은 주말이에요.`);
       if (end) {
         let x = start, school = false;

@@ -2342,8 +2342,8 @@ function openBokmu() {
 $('#bokmuBtn').addEventListener('click', openBokmu);
 
 /* =========================================================
-   출결 (노션 «출결현황» → 나이스 학생 출결, 또는 [바로 입력] 문장 → 노션에 줄 만들기 → 나이스)
-   [목록 불러오기] → 도우미(/chulgyeol, mode list)가 neis-login\출결-실행.cmd 로 노션을 읽어 넣을 줄을 돌려줌 →
+   출결 등록: [문장으로 등록] 문장 → 노션 출결현황에 줄 만들기 → 나이스 (mode add), 또는 노션 «출결현황» → 나이스 학생 출결
+   [N월 출결 확인하기] → 도우미(/chulgyeol, mode list)가 neis-login\출결-실행.cmd 로 노션을 읽어 넣을 줄을 돌려줌 →
    [나이스에 저장] → 같은 길로 mode save (목록에서 본 줄만) → 진행 상황(/chulgyeol-status)을 보여 줘요.
    노션 토큰·나이스 로그인은 이 컴퓨터(neis-login)에만 있어요.
    ========================================================= */
@@ -2356,20 +2356,28 @@ let chulPoll = null;
 
 function openChulgyeol() {
   const month = new Date().getMonth() + 1;
-  const body = openModal('출결 넣기', `
-    <div class="ch-head">
-      <p class="muted small">노션의 &lt;출결관리&gt;의 데이터를 나이스 출결에 저장해요.</p>
-      <button class="btn-primary" id="chLoad">${month}월 출결 불러오기</button>
-    </div>
-    <div id="chBox"></div>
-    <div class="ch-add">
-      <p class="ch-add-title"><b>바로 입력</b> <span class="muted small">노션 출결현황에 적고 나이스에도 저장해요. 한 줄에 한 건씩.</span></p>
+  const body = openModal('출결 등록', `
+    <section class="ch-sec">
+      <div class="ch-sec-head">
+        <h3>문장으로 등록</h3>
+        <p class="muted small">한 줄에 한 건씩 적으면 노션 출결현황에 적고 나이스에도 저장해요.</p>
+      </div>
       <form id="chForm" class="ch-form" autocomplete="off">
         <textarea class="box" id="chText" rows="3" placeholder="예: 민수 오늘 병결 감기&#10;서연 11월 3일~5일 체험학습 제주&#10;3번 어제 병조퇴 장염"></textarea>
-        <button class="btn-line" type="submit">해석</button>
+        <button class="btn-line" type="submit">등록</button>
       </form>
       <div id="chAdd"></div>
-    </div>`,
+    </section>
+    <section class="ch-sec">
+      <div class="ch-sec-head ch-sec-row">
+        <div>
+          <h3>노션에 적어 둔 출결</h3>
+          <p class="muted small">노션 출결현황에서 ${month}월 중 아직 나이스에 없는 줄을 찾아 저장해요.</p>
+        </div>
+        <button class="btn-primary" id="chLoad">${month}월 출결 확인하기</button>
+      </div>
+      <div id="chBox"></div>
+    </section>`,
   { wide: true, onClose: () => { clearInterval(chulPoll); chulPoll = null; } });
   const box = $('#chBox', body);
   const krDay = s => s ? `${+s.slice(5, 7)}월 ${+s.slice(8, 10)}일` : '';   // 2026-11-01 → 11월 1일
@@ -2384,7 +2392,7 @@ function openChulgyeol() {
 
   $('#chLoad', body).addEventListener('click', () => send({ mode: 'list' }));   // 기간은 나이스 프로그램이 «이번 달 전체»로 정해요
 
-  // 바로 입력: 문장 → 미리 보기 → [저장] → 나이스 프로그램이 노션에 줄을 만들고 나이스에 넣고 체크 (mode add)
+  // 문장으로 등록: 문장 → 미리 보기 → [저장] → 나이스 프로그램이 노션에 줄을 만들고 나이스에 넣고 체크 (mode add)
   const addBox = $('#chAdd', body);
   $('#chForm', body).addEventListener('submit', e => {
     e.preventDefault();
@@ -2395,7 +2403,7 @@ function openChulgyeol() {
     addBox.innerHTML = `
       ${table(ok)}
       ${notes.map(n => `<p class="bk-note">${esc(n)}</p>`).join('')}
-      ${bad.length ? `<p class="bk-note">이 줄은 못 넣어요 — 문장을 고쳐서 다시 [해석] 해 주세요.</p>
+      ${bad.length ? `<p class="bk-note">이 줄은 등록할 수 없어요. 문장을 고쳐 다시 [등록]을 눌러 주세요.</p>
         <table class="ch-table"><thead><tr><th>적은 문장</th><th>이유</th></tr></thead><tbody>${bad.map(r =>
           `<tr><td>${esc(r.text)}</td><td class="ch-why">${esc(r.problems.join(' '))}</td></tr>`).join('')}</tbody></table>` : ''}
       ${ok.length ? `<div class="bk-actions"><button class="btn-primary" id="chAddSave">${icon('check')}노션·나이스에 저장 (${ok.length}줄)</button></div>` : ''}
@@ -2414,16 +2422,16 @@ function openChulgyeol() {
       $('#chAddYes', st).focus();
     });
   });
-  $('#chText', body).addEventListener('keydown', e => {   // Ctrl+Enter = 해석
+  $('#chText', body).addEventListener('keydown', e => {   // Ctrl+Enter = 등록
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); $('#chForm', body).requestSubmit(); }
   });
 
   function showList(s) {
     const rows = s.rows || [], skip = s.skip || [];
     box.innerHTML = `
-      ${rows.length ? `<p class="bk-line">넣을 줄 <b>${rows.length}개</b> (${esc(s.from)} ~ ${esc(s.to)})</p>${table(rows)}`
+      ${rows.length ? `<p class="bk-line">나이스에 저장할 줄 <b>${rows.length}개</b> (${esc(krDay(s.from))} ~ ${esc(krDay(s.to))})</p>${table(rows)}`
         : `<p class="bk-done">모든 출결사항이 나이스에 저장되었습니다. (${esc(krDay(s.from))} ~ ${esc(krDay(s.to))})</p>`}
-      ${skip.length ? `<p class="bk-note">못 넣는 줄 ${skip.length}개 — 노션에서 고친 뒤 다시 불러 주세요.</p>${table(skip, true)}` : ''}
+      ${skip.length ? `<p class="bk-note">저장할 수 없는 줄 ${skip.length}개 · 노션에서 고친 뒤 다시 [확인하기]를 눌러 주세요.</p>${table(skip, true)}` : ''}
       ${rows.length ? `<div class="bk-actions"><button class="btn-primary" id="chSave">${icon('check')}나이스에 저장 (${rows.length}줄)</button></div>` : ''}
       <div id="chStatus"></div>`;
     hydrateIcons(box);
@@ -2444,7 +2452,7 @@ function openChulgyeol() {
   function send(v, out = box) {
     const H = window.SCHOOLBOARD_HELPER, runner = bokmuRunnerPath()?.replace(/복무-실행\.cmd$/, '출결-실행.cmd');
     if (!H || !H.token) { out.innerHTML = `<p class="bk-problem">폴더 열기 도우미가 설치돼 있지 않아요. folder-opener 의 설치 파일을 먼저 실행해 주세요.</p>`; return; }
-    if (!runner) { out.innerHTML = `<p class="bk-problem">출결 넣기는 스쿨보드를 index.html 파일로 열었을 때만 돼요.</p>`; return; }
+    if (!runner) { out.innerHTML = `<p class="bk-problem">출결 등록은 스쿨보드를 index.html 파일로 열었을 때만 돼요.</p>`; return; }
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     out.innerHTML = `<p class="bk-step"><span class="bk-spin"></span>요청을 보내는 중…</p>`;
     fetch(`http://127.0.0.1:${H.port}/chulgyeol?t=${H.token}&p=${b64url(runner)}&q=${b64url(JSON.stringify({ id, ...v }))}`, { cache: 'no-store' })
@@ -2475,8 +2483,8 @@ function openChulgyeol() {
       if (s.state === 'list') { showList(s); return; }
       const done = s.done || [], failed = s.failed || [];
       out.innerHTML = `<p class="${s.state === 'done' ? 'bk-done' : 'bk-problem'}">${esc(s.message || '끝났어요.')}</p>
-        ${done.length ? `<p class="bk-line">처리한 줄</p>${table(done)}` : ''}
-        ${failed.length ? `<p class="bk-line">못 넣은 줄</p>${table(failed, true)}` : ''}`;
+        ${done.length ? `<p class="bk-line">저장한 줄</p>${table(done)}` : ''}
+        ${failed.length ? `<p class="bk-line">저장하지 못한 줄</p>${table(failed, true)}` : ''}`;
       if (s.state === 'done') toast(`나이스 출결 ${done.length}줄을 저장했어요.`);
     }, 1500);
   }
