@@ -102,9 +102,25 @@
   }
 
   const FILLER = new Set(['했어요', '했음', '했다', '했어', '함', '해요', '합니다', '예정', '예정이에요', '입니다', '이에요', '에요', '부터', '까지', '에', '때문에', '때문', '하루', '하고', '으로', '로', '임', '처리', '넣어', '넣어줘', '넣기', '해줘', '신청']);
-  function cleanReason(s) {
-    let r = s.replace(/[~,.]/g, ' ').split(/\s+/).filter((w) => w && !FILLER.has(w)).join(' ').trim();
-    r = r.replace(/\s*(때문에|이라서|라서|해서|으로|로)$/, '').trim();
+  // 낱말 끝 조사 떼기: «부여에»→부여, «제주도에서»→제주도, «감기로»→감기, «장염으로»→장염
+  // (두 글자 낱말의 «로» 는 안 떼요: 피로·과로)
+  const stripJosa = (w) => w.replace(/(에서|에|으로)$/, (m, _, i) => (i >= 1 ? '' : m)).replace(/(.{2,})로$/, '$1');
+  // 체험학습·가정학습 괄호에는 «지역»만 남기려고 빼는 말 (가서·여행·방문 …)
+  const TRIP_WORDS = /^(가서|가요|가|감|가고|갑니다|다녀옴|다녀와요|다녀옵니다|다녀오기|여행|가족여행|여행으로|방문|가족|으로|로|함께|같이|지역|학습)$/;
+
+  // 지역은 도시 이름만: 도(강원·경기 …)는 빼고, «제주도»→제주, «부여군»→부여, «강릉시»→강릉, «부산광역시»→부산
+  const PROVINCE = /^(강원|경기|충청|충남|충북|충청남|충청북|전라|전남|전북|전라남|전라북|경상|경남|경북|경상남|경상북)(특별자치)?도?$/;
+  function cityOnly(w) {
+    if (PROVINCE.test(w)) return '';
+    if (/^제주(특별자치)?도$/.test(w)) return '제주';
+    return w.replace(/(특별자치시|특별시|광역시)$/, '').replace(/^(.{2,})[시군]$/, '$1');
+  }
+
+  function cleanReason(s, { trip = false } = {}) {
+    let words = s.replace(/[~,.\-–/]/g, ' ').split(/\s+/).filter((w) => w && !FILLER.has(w)).map(stripJosa).filter((w) => w && !FILLER.has(w));
+    if (trip) words = words.filter((w) => !TRIP_WORDS.test(w)).map(cityOnly).filter(Boolean);
+    let r = words.join(' ').trim();
+    r = r.replace(/\s*(때문에|이라서|라서|해서)$/, '').trim();   // «으로·로» 는 stripJosa 가 낱말마다 떼요
     return r.replace(/^[(\[]|[)\]]$/g, '').trim();
   }
 
@@ -153,7 +169,7 @@
     // 사유: 학생·날짜·구분 낱말을 뺀 나머지
     let rest = t.split('');
     for (const [a, n] of cut) for (let i = a; i < a + n; i++) rest[i] = ' ';
-    let reason = cleanReason(rest.join('').replace(KIND_WORDS, ' '));
+    let reason = cleanReason(rest.join('').replace(KIND_WORDS, ' '), { trip: k.kind === '체험학습' || k.kind === '가정학습' });
     if (k.kind === '체험학습') reason = reason ? `교외체험학습(${reason})` : '교외체험학습';
     else if (k.kind === '가정학습') reason = reason ? `가정학습(${reason})` : '가정학습';
     else if (!reason && k.kind) problems.push(k.kind.startsWith('병') ? '사유(병명)를 적어 주세요. 예: 감기, 장염' : '사유를 적어 주세요.');
