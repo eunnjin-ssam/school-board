@@ -34,14 +34,28 @@ static class SchoolBoardOpen
     [STAThread]
     static int Main(string[] args)
     {
+        // 2026-11-11: 켜 둔 도우미가 소리 없이 꺼진 일이 있어서, 왜 꺼졌는지 helper-error.log 에 남겨요.
+        AppDomain.CurrentDomain.UnhandledException += (s, e) => LogError("처리 못 한 오류(꺼짐)", e.ExceptionObject as Exception);
         try
         {
             if (args.Length < 1) return 1;
-            if (args[0] == "--serve") return Serve();
+            if (args[0] == "--serve") { int code = Serve(); LogError("대기 끝남 code=" + code, null); return code; }
             Match m = Regex.Match(args[0].Trim(), @"^schoolboard-folder:/*b64:([A-Za-z0-9_-]+)/?$", RegexOptions.IgnoreCase);
             return m.Success ? Open(m.Groups[1].Value) : 1;
         }
-        catch { return 1; }
+        catch (Exception ex) { if (args.Length > 0 && args[0] == "--serve") LogError("Main", ex); return 1; }
+    }
+
+    static void LogError(string where, Exception ex)
+    {
+        try
+        {
+            string f = Path.Combine(Home, "helper-error.log");
+            if (File.Exists(f) && new FileInfo(f).Length > 100000) File.Delete(f);
+            File.AppendAllText(f, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  pid " + Process.GetCurrentProcess().Id + "  " + where +
+                (ex != null ? "  " + ex.GetType().Name + ": " + ex.Message : "") + Environment.NewLine, new UTF8Encoding(false));
+        }
+        catch { }
     }
 
     // ---------- 1) 대기 방식 ----------
@@ -58,13 +72,31 @@ static class SchoolBoardOpen
 
             TcpListener listener = new TcpListener(IPAddress.Loopback, Port);
             listener.Start();
+            LogError("대기 시작", null);
+            int fails = 0;
             while (true)
             {
-                TcpClient c = listener.AcceptTcpClient();
-                Thread t = new Thread(() => Handle(c, token));
-                t.IsBackground = true;
-                t.SetApartmentState(ApartmentState.STA);   // 확인 창을 띄우려면 필요
-                t.Start();
+                try
+                {
+                    TcpClient c = listener.AcceptTcpClient();
+                    Thread t = new Thread(() => Handle(c, token));
+                    t.IsBackground = true;
+                    t.SetApartmentState(ApartmentState.STA);   // 확인 창을 띄우려면 필요
+                    t.Start();
+                    fails = 0;
+                }
+                catch (Exception ex)
+                {
+                    // 한 번 실패해도 끄지 않고 다시 기다려요. 계속 실패하면 대기 단자를 새로 열어요.
+                    LogError("요청 받기 실패", ex);
+                    Thread.Sleep(500);
+                    if (++fails >= 5)
+                    {
+                        try { listener.Stop(); } catch { }
+                        listener = new TcpListener(IPAddress.Loopback, Port);
+                        try { listener.Start(); fails = 0; } catch (Exception ex2) { LogError("대기 다시 열기 실패", ex2); Thread.Sleep(5000); }
+                    }
+                }
             }
         }
     }

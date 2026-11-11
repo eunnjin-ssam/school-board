@@ -37,11 +37,18 @@ if ($Uninstall) {
 # 도우미 프로그램을 Windows에 들어 있는 C# 컴파일러로 이 컴퓨터에서 바로 만듦 (인터넷에서 받는 파일 없음)
 # 스쿨보드 폴더를 옮겨도 계속 동작하도록 고정된 위치에 둠
 New-Item -ItemType Directory -Path $dest -Force | Out-Null
-Stop-Helper
+# 먼저 새 파일로 만들어 보고, 잘 만들어졌을 때만 도우미를 끄고 바꿔요 (만들기에 실패해도 쓰던 도우미는 계속 켜져 있게)
 $csc = Join-Path ([Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory()) 'csc.exe'
 $src = Join-Path $PSScriptRoot 'SchoolBoardOpen.cs'
-$out = & $csc /nologo /target:winexe /optimize+ /codepage:65001 "/out:$exe" /r:System.Windows.Forms.dll $src 2>&1
-if ($LASTEXITCODE -ne 0) { $out | Write-Host; throw '도우미 프로그램을 만들지 못했어요.' }
+$newExe = "$exe.new"
+$out = & $csc /nologo /target:winexe /optimize+ /codepage:65001 "/out:$newExe" /r:System.Windows.Forms.dll $src 2>&1
+if ($LASTEXITCODE -ne 0) {
+  if (Test-Path $newExe) { Remove-Item $newExe -Force }
+  $out | Write-Host
+  throw '도우미 프로그램을 만들지 못했어요. 쓰던 도우미는 그대로 두었어요.'
+}
+Stop-Helper
+Move-Item -LiteralPath $newExe -Destination $exe -Force
 foreach ($f in $old) { if (Test-Path $f) { Remove-Item $f -Force } }
 
 # 비밀 열쇠: 처음 한 번 만들고, 다시 설치할 때는 그대로 씀
