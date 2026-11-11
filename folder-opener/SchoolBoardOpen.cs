@@ -106,6 +106,7 @@ static class SchoolBoardOpen
                     else { status = 200; json = ReadJobStatus("chulgyeol"); }
                 }
                 else if (line.StartsWith("GET /ping ")) status = 200;
+                if (status == 404) Log404(line, token);
 
                 byte[] body = json != null ? new UTF8Encoding(false).GetBytes(json) : Encoding.ASCII.GetBytes(status == 200 ? "ok" : "no");
                 string type = json != null ? "application/json; charset=utf-8" : "text/plain";
@@ -146,6 +147,23 @@ static class SchoolBoardOpen
             return Open(pathB64) == 0;
         }
         catch { return false; }
+    }
+
+    // 2026-11-10·11: 컴퓨터를 켤 때 자동으로 뜬 도우미만 맞는 요청에도 404 를 내는 일이 있어 원인을 찾으려고 남겨요.
+    // 비밀 열쇠는 *** 로 가리고, 파일이 커지면 새로 써요.
+    static void Log404(string line, string token)
+    {
+        try
+        {
+            string f = Path.Combine(Home, "helper-404.log");
+            if (File.Exists(f) && new FileInfo(f).Length > 100000) File.Delete(f);
+            string safe = token.Length > 0 ? line.Replace(token, "***") : line;
+            if (safe.Length > 300) safe = safe.Substring(0, 300) + "…(" + line.Length + "자)";
+            Process me = Process.GetCurrentProcess();
+            File.AppendAllText(f, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  시작 " + me.StartTime.ToString("MM-dd HH:mm:ss") +
+                "  exe " + File.GetLastWriteTime(me.MainModule.FileName).ToString("MM-dd HH:mm") + "  " + safe + Environment.NewLine, new UTF8Encoding(false));
+        }
+        catch { }
     }
 
     static string ReadJobStatus(string job)
