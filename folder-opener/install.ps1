@@ -17,6 +17,22 @@ $tokenJs = Join-Path $PSScriptRoot 'helper-token.js'
 # 예전 버전이 남긴 스크립트 도우미 (있으면 지움)
 $old = @('open-folder.ps1', 'open-folder.vbs') | ForEach-Object { Join-Path $dest $_ }
 
+# 2026-11-12: Claude 앱 같은 «앱 패키지» 안에서 실행하면 AppData\Local 에 쓴 파일이 진짜 폴더가 아니라
+# 그 앱 전용 폴더(AppData\Local\Packages\<앱>\LocalCache\Local)로 들어가요. 그러면 컴퓨터를 켤 때 예전 도우미가 떠요.
+# 시험 파일을 하나 써 보고 그쪽으로 갔으면 아무것도 바꾸지 않고 멈춰요.
+$probeName = "schoolboard-probe-$PID.txt"
+$probe = Join-Path $env:LOCALAPPDATA $probeName
+Set-Content -LiteralPath $probe -Value 'probe' -Encoding ASCII
+$redirected = Get-ChildItem (Join-Path $env:LOCALAPPDATA "Packages\*\LocalCache\Local\$probeName") -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $probe -Force -ErrorAction SilentlyContinue
+foreach ($r in $redirected) { Remove-Item -LiteralPath $r.FullName -Force -ErrorAction SilentlyContinue }
+if ($redirected) {
+  Write-Host ''
+  Write-Host '여기서는 설치할 수 없어요. (Claude 같은 앱 안에서 실행하면 진짜 폴더에 설치되지 않아요.)'
+  Write-Host '파일 탐색기에서 folder-opener 폴더의 «폴더열기-설치.cmd» 를 직접 더블클릭해 주세요.'
+  exit 2
+}
+
 function Stop-Helper {
   Get-Process SchoolBoardOpen -ErrorAction SilentlyContinue | Stop-Process -Force
   Start-Sleep -Milliseconds 300
