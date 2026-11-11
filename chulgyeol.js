@@ -101,7 +101,25 @@
     return { problem: '구분(병결·체험학습·병지각·병조퇴 …)을 찾지 못했어요.' };
   }
 
-  const FILLER = new Set(['했어요', '했음', '했다', '했어', '함', '해요', '합니다', '예정', '예정이에요', '입니다', '이에요', '에요', '부터', '까지', '에', '때문에', '때문', '하루', '하고', '으로', '로', '임', '처리', '넣어', '넣어줘', '넣기', '해줘', '신청']);
+  // ---- 교시 (조퇴·지각) ----
+  // 선생님 규칙(2026-11-11): 나이스 «일일출결입력» 창에서 학교에 없던 칸에 «/» 를 눌러요.
+  //   조퇴 «4교시 후» → 5교시~종례 / 지각 «2교시에 등교» → 조회~1교시. 사유에는 교시 말을 쓰지 않아요 (예: 치과).
+  // 노션에는 «메모» 칸에 «4교시 후 조퇴» / «2교시 등교» 꼴로 적어요 (neis-login 이 이걸 읽어 칸을 눌러요).
+  const PERIOD_RE = /([1-9])\s*교시\s*(후에?|뒤에?|끝나고|마치고|하고|까지(?:\s*(?:하고|있다가|듣고|수업하고))?|에|부터|중에?|때)?/;
+  function findPeriod(t, kind) {
+    const m = PERIOD_RE.exec(t);
+    if (!m) return null;
+    const n = +m[1], done = /^(후|뒤|끝나고|마치고|하고|까지)/.test(m[2] || '');
+    const span = [m.index, m[0].length];
+    if (/조퇴/.test(kind)) {
+      const after = done ? n : n - 1;   // 마지막으로 있던 교시
+      return { span, memo: after ? `${after}교시 후 조퇴` : '조회 후 조퇴', show: `${after + 1}교시~종례 «/»` };
+    }
+    const arrive = done ? n + 1 : n;    // 처음 들어온 교시
+    return { span, memo: `${arrive}교시 등교`, show: arrive > 1 ? `조회~${arrive - 1}교시 «/»` : '조회 «/»' };
+  }
+
+  const FILLER = new Set(['등교', '도착', '옴', '왔음', '왔어요', '왔다', '갔음', '갔어요', '갔다', '감', '가요', '했고','했어요', '했음', '했다', '했어', '함', '해요', '합니다', '예정', '예정이에요', '입니다', '이에요', '에요', '부터', '까지', '에', '때문에', '때문', '하루', '하고', '으로', '로', '임', '처리', '넣어', '넣어줘', '넣기', '해줘', '신청']);
   // 낱말 끝 조사 떼기: «부여에»→부여, «제주도에서»→제주도, «감기로»→감기, «장염으로»→장염
   // (두 글자 낱말의 «로» 는 안 떼요: 피로·과로)
   const stripJosa = (w) => w.replace(/(에서|에|으로)$/, (m, _, i) => (i >= 1 ? '' : m)).replace(/(.{2,})로$/, '$1');
@@ -136,6 +154,13 @@
     const k = findKind(t);
     if (k.problem) problems.push(k.problem);
 
+    let memo = '', periodShow = '';
+    if (/조퇴|지각/.test(k.kind || '')) {
+      const pd = findPeriod(t, k.kind);
+      if (pd) { cut.push(pd.span); memo = pd.memo; periodShow = pd.show; }
+      else problems.push(/조퇴/.test(k.kind) ? '몇 교시 후에 갔는지 적어 주세요. 예: «4교시 후 병조퇴 치과»' : '몇 교시에 왔는지 적어 주세요. 예: «2교시에 병지각 감기»');
+    }
+
     // 날짜
     const ds = findDates(t, now);
     cut.push(...ds.map((x) => [x.at, x.len]));
@@ -166,7 +191,9 @@
       if (start > day0(now)) notes.push('앞으로의 날짜예요.');
     }
 
-    // 사유: 학생·날짜·구분 낱말을 뺀 나머지
+    if (/조퇴|지각/.test(k.kind || '') && end) problems.push('조퇴·지각은 하루씩 한 줄에 적어 주세요.');
+
+    // 사유: 학생·날짜·구분·교시 낱말을 뺀 나머지
     let rest = t.split('');
     for (const [a, n] of cut) for (let i = a; i < a + n; i++) rest[i] = ' ';
     let reason = cleanReason(rest.join('').replace(KIND_WORDS, ' '), { trip: k.kind === '체험학습' || k.kind === '가정학습' });
@@ -178,7 +205,7 @@
     const kind = k.kind === '체험학습' ? '출석인정결석' : k.kind || '';
     return {
       text: t, no: st.no ?? null, name: st.name || '', kind,
-      date: start ? ymd(start) : '', end: end ? ymd(end) : null, reason, problems, notes,
+      date: start ? ymd(start) : '', end: end ? ymd(end) : null, reason, memo, periodShow, problems, notes,
     };
   }
 

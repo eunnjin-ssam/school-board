@@ -2387,7 +2387,7 @@ function openChulgyeol() {
     (r.orig ? `<br><small class="muted">노션 ${esc(r.orig.replace(/\d{4}-/g, ''))}${r.partial ? ' · 다음 달 부분은 다음 달에' : ''}</small>` : '') +
     (r.already ? `<br><small class="muted">이미 들어 있었음</small>` : '');
   const row = r => `<tr><td>${when(r)}</td><td>${esc(String(r.no ?? '?'))}번 ${esc(r.name || '')}</td>` +
-    `<td>${esc(r.kind)} → <b>${esc(CHUL_NEIS[r.kind] || '?')}</b></td><td>${esc(r.reason)}</td>${r.why ? `<td class="ch-why">${esc(r.why)}</td>` : ''}</tr>`;
+    `<td>${esc(r.kind)} → <b>${esc(CHUL_NEIS[r.kind] || '?')}</b>${r.periodShow ? `<br><small class="muted">${esc(r.periodShow)}</small>` : ''}</td><td>${esc(r.reason)}</td>${r.why ? `<td class="ch-why">${esc(r.why)}</td>` : ''}</tr>`;
   const table = (rows, why) => rows.length ? `<table class="ch-table"><thead><tr><th>날짜</th><th>학생</th><th>나이스</th><th>사유</th>${why ? '<th>이유</th>' : ''}</tr></thead><tbody>${rows.map(row).join('')}</tbody></table>` : '';
 
   $('#chLoad', body).addEventListener('click', () => send({ mode: 'list' }));   // 기간은 나이스 프로그램이 «이번 달 전체»로 정해요
@@ -2416,7 +2416,7 @@ function openChulgyeol() {
         <button class="btn-primary" id="chAddYes">저장</button><button class="btn-line" id="chAddNo">취소</button></div>`;
       $('#chAddYes', st).addEventListener('click', () => {
         $('#chAddSave', addBox).disabled = true;
-        send({ mode: 'add', rows: ok.map(({ no, name, kind, date, end, reason }) => ({ no, name, kind, date, end, reason })) }, st);
+        send({ mode: 'add', rows: ok.map(({ no, name, kind, date, end, reason, memo }) => ({ no, name, kind, date, end, reason, memo })) }, st);
       });
       $('#chAddNo', st).addEventListener('click', () => { st.innerHTML = ''; });
       $('#chAddYes', st).focus();
