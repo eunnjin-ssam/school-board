@@ -174,8 +174,10 @@
     else if (k.kind === '가정학습') reason = reason ? `가정학습(${reason})` : '가정학습';
     else if (!reason && k.kind) problems.push(k.kind.startsWith('병') ? '사유(병명)를 적어 주세요. 예: 감기, 장염' : '사유를 적어 주세요.');
 
+    // 선생님 규칙(2026-11-11): 체험학습은 노션 «구분» 을 «출석인정결석» 으로 적어요 (나이스는 똑같이 결석 출석인정△)
+    const kind = k.kind === '체험학습' ? '출석인정결석' : k.kind || '';
     return {
-      text: t, no: st.no ?? null, name: st.name || '', kind: k.kind || '',
+      text: t, no: st.no ?? null, name: st.name || '', kind,
       date: start ? ymd(start) : '', end: end ? ymd(end) : null, reason, problems, notes,
     };
   }
