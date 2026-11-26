@@ -148,11 +148,27 @@
     return r.replace(/^[(\[]|[)\]]$/g, '').trim();
   }
 
+  // 선생님이 사유를 직접 정해 줄 때 (2026-11-26): 문장 끝 «사유에는 이비인후과 진료 쓰기» / «사유: 감기» / «사유는 장염으로»
+  //   → 그 말만 사유로 써요. 앞 문장은 학생·날짜·구분·교시를 찾는 데만 써요.
+  const REASON_SAY = /(?:^|[\s.,。])사유\s*(?:란에는|란에|칸에는|칸에|에는|에|은|는|를|을|로는|로|으로)?\s*[:：]?\s*(.+?)\s*(?:(?:이?라고|으로|로)\s*)?(?:써\s*주세요|써\s*줘|써요|써|쓰기|쓰고|쓸게|적어\s*주세요|적어\s*줘|적어요|적어|적기|넣어\s*주세요|넣어\s*줘|넣어|넣기|해\s*주세요|해\s*줘|해요|하기|입력)?\s*[.。!]?$/;
+  function findReasonSay(t) {
+    const m = REASON_SAY.exec(t);
+    if (!m) return null;
+    const said = m[1].replace(/^[«"'“‘(\[]+|[»"'”’)\]]+$/g, '').trim();
+    if (!said) return null;
+    const at = m.index + (m[0].match(/^[\s.,。]*/)[0].length);
+    return { reason: said, rest: (t.slice(0, at)).trim() };
+  }
+
   function parseLine(text, students, now) {
-    const t = String(text || '').replace(/\s+/g, ' ').trim()
+    let t = String(text || '').replace(/\s+/g, ' ').trim()
       .replace(/(\d{1,2})\s*[~\-]\s*(\d{1,2})\s*일/g, '$1일~$2일');   // «3~5일» → «3일~5일»
     const problems = [], notes = [];
     const cut = [];   // 사유에서 뺄 자리 [시작, 길이]
+    const say = findReasonSay(t);
+    const full = t;
+    // 지시 부분은 떼고 해석해요. 단, 아픈 말이 지시 안에만 있으면(«사유는 감기») 구분 찾을 때 함께 봐요.
+    if (say) t = say.rest + (SICK.test(say.rest) || !SICK.test(say.reason) ? '' : ` ${say.reason}`);
 
     const st = findStudent(t, students);
     problems.push(...st.problems); cut.push(...st.spans);
@@ -202,15 +218,16 @@
     // 사유: 학생·날짜·구분·교시 낱말을 뺀 나머지
     let rest = t.split('');
     for (const [a, n] of cut) for (let i = a; i < a + n; i++) rest[i] = ' ';
-    let reason = cleanReason(rest.join('').replace(KIND_WORDS, ' '), { trip: k.kind === '체험학습' || k.kind === '가정학습' });
-    if (k.kind === '체험학습') reason = reason ? `교외체험학습(${reason})` : '교외체험학습';
+    let reason = say ? say.reason : cleanReason(rest.join('').replace(KIND_WORDS, ' '), { trip: k.kind === '체험학습' || k.kind === '가정학습' });
+    if (say && /^(교외체험학습|가정학습)/.test(reason)) { /* 선생님이 쓴 그대로 */ }
+    else if (k.kind === '체험학습') reason = reason ? `교외체험학습(${reason})` : '교외체험학습';
     else if (k.kind === '가정학습') reason = reason ? `가정학습(${reason})` : '가정학습';
     else if (!reason && k.kind) problems.push(k.kind.startsWith('병') ? '사유(병명)를 적어 주세요. 예: 감기, 장염' : '사유를 적어 주세요.');
 
     // 선생님 규칙(2026-11-11): 체험학습은 노션 «구분» 을 «출석인정결석» 으로 적어요 (나이스는 똑같이 결석 출석인정△)
     const kind = k.kind === '체험학습' ? '출석인정결석' : k.kind || '';
     return {
-      text: t, no: st.no ?? null, name: st.name || '', kind,
+      text: full, no: st.no ?? null, name: st.name || '', kind,
       date: start ? ymd(start) : '', end: end ? ymd(end) : null, reason, memo, periodShow, problems, notes,
     };
   }
